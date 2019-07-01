@@ -13,9 +13,9 @@ The following actions can be performed with SQL file system provider.
 - Read      - Read the files from SQL table.
 - Details   - Gets a file's details which consists of Type, Size, Location and Modified date.
 - Download  - Download the selected file or folder from the SQL table.
-- Upload    - Uploads a file to the SQL table. It accepts uploaded media with the following characteristics:<br />
-                - Maximum file size:  30MB<br />
-                - Accepted Media MIME types: "*"<br />
+- Upload    - Uploads a file to the SQL table. It accepts uploaded media with the following characteristics: <br />
+                - Maximum file size:  30MB <br />
+                - Accepted Media MIME types: "*" <br />
 - Create    - Create a New folder.
 - Delete    - Delete a folder or file.
 - Copy      - Copy the selected Files from target.

@@ -1,7 +1,5 @@
 # Changelog
 
-## [Unreleased]
-
 ### SQL Server File System Provider
 
 #### New Features
