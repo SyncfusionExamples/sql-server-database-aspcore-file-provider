@@ -1,6 +1,6 @@
 # SQL database file system provider for Essential JS2 File Manager
 
-This repository contains the SQL database file system provider in ASP.NET Core for the Essential JS 2 File Manager component..
+This repository contains the SQL database file system provider in ASP.NET Core for the Essential JS 2 File Manager component.
 
 ## Key Features
 
@@ -13,9 +13,9 @@ The following actions can be performed with SQL file system provider.
 - Read      - Read the files from SQL table.
 - Details   - Gets a file's details which consists of Type, Size, Location and Modified date.
 - Download  - Download the selected file or folder from the SQL table.
-- Upload    - Uploads a file to the SQL table. It accepts uploaded media with the following characteristics:
-                - Maximum file size:  30MB
-                - Accepted Media MIME types: */*
+- Upload    - Uploads a file to the SQL table. It accepts uploaded media with the following characteristics:<br />
+                - Maximum file size:  30MB<br />
+                - Accepted Media MIME types: "*"<br />
 - Create    - Create a New folder.
 - Delete    - Delete a folder or file.
 - Copy      - Copy the selected Files from target.
