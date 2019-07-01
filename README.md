@@ -1,4 +1,4 @@
-# ej2-sql-server-database-aspcore-file-provider
+# SQL database file system provider for Essential JS2 File Manager
 
 This repository contains the SQL database file system provider in ASP.NET Core for the Essential JS 2 File Manager component..
 
@@ -43,13 +43,13 @@ To configure the SQL server database connection use the `SetSQLConnection` metho
 
 ## How to run this application?
 
-To run this application, clone the [`ej2-sql-server-database-aspcore-file-provider `](https://github.com/ej2-sql-server-database-aspcore-file-provider ) repository and then navigate to its appropriate path where it has been located in your system.
+To run this application, clone the [`ej2-sql-server-database-aspcore-file-provider `](https://github.com/SyncfusionExamples/ej2-sql-server-database-aspcore-file-provider ) repository and then navigate to its appropriate path where it has been located in your system.
 
 To do so, open the command prompt and run the below commands one after the other.
 
 ```
 
-git clone https://github.com/ej2-sql-server-database-aspcore-file-provider   FileManagerSQLService
+git clone https://github.com/SyncfusionExamples/ej2-sql-server-database-aspcore-file-provider   FileManagerSQLService
 cd FileManagerSQLService
 
 ```
