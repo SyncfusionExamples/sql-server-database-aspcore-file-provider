@@ -25,11 +25,23 @@ The following actions can be performed with SQL file system provider.
 
 ## Prerequisites
 
-Make the SQL server connection with SQL database file (FileManager.mdf) and specify the connection string in "Web.config" file as specified in below code example.
+Make the SQL server connection with SQL database file ([App_Data/FileManager.mdf](https://github.com/SyncfusionExamples/ej2-sql-server-database-aspcore-file-provider/tree/master/App_Data)) and specify the connection string in "Web.config" file as specified in below code example.
 
 ```
 
 <add name="FileExplorerConnection" connectionString="Data Source=(LocalDB)\v11.0;AttachDbFilename=|DataDirectory|\FileManager.mdf;Integrated Security=True;Trusted_Connection=true" />
+
+```
+
+Also need to add the entry for the connection string in the [`appsettings.json`](https://github.com/SyncfusionExamples/ej2-sql-server-database-aspcore-file-provider/blob/master/appsettings.json) file as specified in below code example.
+
+```
+
+{
+  "ConnectionStrings": {
+    "FileManagerConnection": "Data Source=(LocalDB)\\MSSQLLocalDB;AttachDbFilename=|DataDirectory|\\App_Data\\FileManager.mdf;Integrated Security=True;Connect Timeout=30"
+  }
+}
 
 ```
 
