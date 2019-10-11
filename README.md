@@ -10,18 +10,18 @@ SQL file system provider serves the file system support for the  FileManager com
 
 The following actions can be performed with SQL file system provider.
 
-- Read      - Read the files from SQL table.
-- Details   - Gets a file's details which consists of Type, Size, Location and Modified date.
-- Download  - Download the selected file or folder from the SQL table.
-- Upload    - Uploads a file to the SQL table. It accepts uploaded media with the following characteristics: <br />
-                - Maximum file size:  30MB <br />
-                - Accepted Media MIME types: "*" <br />
-- Create    - Create a New folder.
-- Delete    - Delete a folder or file.
-- Copy      - Copy the selected Files from target.
-- Move      - Paste the copied files to the desired location.
-- Rename    - Rename a folder or file.
-- Search    - Full-text queries perform linguistic searches against text data in full-text indexes by operating on words and phrases.
+| **Actions** | **Description** |
+| --- | --- |
+| Read      | Read the files from SQL table. |
+| Details   | Gets a file's details which consists of Type, Size, Location and Modified date. |
+| Download  | Downloads the selected file or folder from the SQL table. |
+| Upload    | Uploads a file to the SQL table. It accepts uploaded media with the following characteristics: <ul><li>Maximum file size:  30MB</li><li>Accepted Media MIME types: `*/*` </li></ul> |
+| Create    | Creates a New folder. |
+| Delete    | Deletes a folder or file. |
+| Copy      | Copys the selected Files from target. |
+| Move      | Pastes the copied files to the desired location. |
+| Rename    | Renames a folder or file. |
+| Search    | Full-text queries perform linguistic searches against text data in full-text indexes by operating on words and phrases. |
 
 ## Prerequisites
 
@@ -66,9 +66,87 @@ cd FileManagerSQLService
 
 ```
 
+## Restore the NuGet package and build the application
+
+To restore the NuGet package, run the following command in root folder of the application.
+
+```
+dotnet restore
+```
+
+To build the application, run the following command.
+
+```
+dotnet build
+```
+
 ## Running application
 
-Once cloned, open solution file in visual studio.Then build the project and run it after restoring the nuget packages.
+After successful compilation, run the following command to run the application.
+
+```
+dotnet run
+```
+
+Now, the project will be hosted in http://localhost. To ensure the SQL server database file provider system, map the following URL in your browser.
+
+```
+http://localhost:<port-number>/api/test
+```
+
+## File Manager AjaxSettings
+
+To access the basic actions such as Read, Delete, Copy, Move, Rename, Search, and Get Details of File Manager using SQL server file provider service, just map the following code snippet in the Ajaxsettings property of File Manager.
+
+Here, the `hostUrl` will be your locally hosted port number.
+
+```
+  var hostUrl = http://localhost:62870/;
+  ajaxSettings: {
+        url: hostUrl + 'api/SQLProvider/SQLFileOperations'
+  }
+```
+
+## File download AjaxSettings
+
+To perform download operation, initialize the `downloadUrl` property in ajaxSettings of the File Manager component.
+
+```
+  var hostUrl = http://localhost:62870/;
+  ajaxSettings: {
+        url: hostUrl + 'api/SQLProvider/SQLFileOperations',
+        downloadUrl: hostUrl + 'api/SQLProvider/SQLDownload'
+  }
+```
+
+## File upload AjaxSettings
+
+To perform upload operation, initialize the `uploadUrl` property in ajaxSettings of the File Manager component.
+
+```
+  var hostUrl = http://localhost:62870/;
+  ajaxSettings: {
+        url: hostUrl + 'api/SQLProvider/SQLFileOperations',
+        uploadUrl: hostUrl + 'api/SQLProvider/SQLUpload'
+  }
+```
+
+## File image preview AjaxSettings
+
+To perform image preview support in the File Manager component, initialize the `getImageUrl` property in ajaxSettings of the File Manager component.
+
+```
+  var hostUrl = http://localhost:62870/;
+  ajaxSettings: {
+        url: hostUrl + 'api/SQLProvider/SQLFileOperations',
+         getImageUrl: hostUrl + 'api/SQLProvider/SQLGetImage'
+  }
+```
+
+The FileManager will be rendered as the following.
+
+![File Manager](https://ej2.syncfusion.com/products/images/file-manager/readme.gif)
+
 
 ## Support
 
@@ -86,4 +164,4 @@ Check the license detail [here](https://github.com/syncfusion/ej2-javascript-ui-
 
 Check the changelog [here](https://github.com/syncfusion/ej2-javascript-ui-controls/blob/master/controls/filemanager/CHANGELOG.md)
 
-� Copyright 2019 Syncfusion, Inc. All Rights Reserved. The Syncfusion Essential Studio license and copyright applies to this distribution.
+Copyright 2019 Syncfusion, Inc. All Rights Reserved. The Syncfusion Essential Studio license and copyright applies to this distribution.
