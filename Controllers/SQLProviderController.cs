@@ -1,13 +1,14 @@
-﻿using Syncfusion.EJ2.FileManager.Base;
-using Microsoft.AspNetCore.Cors;
+﻿using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
-using Newtonsoft.Json;
-using System.Collections.Generic;
-using Syncfusion.EJ2.FileManager.Base.SQLFileProvider;
 using Microsoft.Extensions.Configuration;
+using Newtonsoft.Json;
 using System;
+using System.Collections.Generic;
+using Syncfusion.EJ2.FileManager.Base;
+using Syncfusion.EJ2.FileManager.Base.SQLFileProvider;
+
 
 namespace EJ2APIServices.Controllers
 {
