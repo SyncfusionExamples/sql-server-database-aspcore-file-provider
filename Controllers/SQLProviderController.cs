@@ -7,6 +7,7 @@ using Newtonsoft.Json;
 using System.Collections.Generic;
 using Syncfusion.EJ2.FileManager.Base.SQLFileProvider;
 using Microsoft.Extensions.Configuration;
+using System;
 
 namespace EJ2APIServices.Controllers
 {
@@ -72,7 +73,7 @@ namespace EJ2APIServices.Controllers
             {
                 Response.Clear();
                 Response.ContentType = "application/json; charset=utf-8";
-                Response.StatusCode = 204;
+                Response.StatusCode = Convert.ToInt32(uploadResponse.Error.Code);
                 Response.HttpContext.Features.Get<IHttpResponseFeature>().ReasonPhrase = uploadResponse.Error.Message;
             }
             return Content("");

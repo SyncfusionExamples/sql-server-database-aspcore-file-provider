@@ -546,6 +546,16 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                         sqlConnection.Open();
                         SqlCommand DelCmd = new SqlCommand("delete  from " + this.TableName + " where ItemID='" + file.Id + "'", sqlConnection);
                         DelCmd.ExecuteNonQuery();
+                        string fullName = Path.Combine(Path.GetTempPath(), file.Name);
+                        var dir = new DirectoryInfo(Path.GetTempPath());
+                        foreach (var newName in Directory.GetFiles(dir.ToString()))
+                        {
+                            if (newName.ToString() == fullName)
+                            {
+                                File.Delete(newName);
+                            }
+
+                        }
                     }
                     catch (SqlException ex) { Console.WriteLine(ex.ToString()); }
                     finally { sqlConnection.Close(); }
@@ -581,22 +591,106 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
         public virtual FileManagerResponse Upload(string path, IList<IFormFile> uploadFiles, string action, params FileManagerDirectoryContent[] data)
         {
             FileManagerResponse uploadResponse = new FileManagerResponse();
-            string filename = Path.GetFileName(uploadFiles[0].FileName);
-            string contentType = uploadFiles[0].ContentType;
+
             try
             {
-                using (FileStream fsSource = new FileStream(Path.Combine(Path.GetTempPath(), filename), FileMode.Create))
+                List<string> existFiles = new List<string>();
+                foreach (IFormFile file in uploadFiles)
                 {
-                    uploadFiles[0].CopyTo(fsSource);
-                    fsSource.Close();
-                }
-                using (FileStream fsSource = new FileStream(Path.Combine(Path.GetTempPath(), filename), FileMode.Open, FileAccess.Read))
-                {
-                    BinaryReader br = new BinaryReader(fsSource);
-                    long numBytes = new FileInfo(Path.Combine(Path.GetTempPath(), filename)).Length;
-                    byte[] bytes = br.ReadBytes((int)numBytes);
-                    UploadQuery(filename, contentType, bytes, data[0].Id);
+                    if (uploadFiles != null)
+                    {
+                        string filename = Path.GetFileName(file.FileName);
+                        string fullName = Path.Combine(Path.GetTempPath(), filename);
+                        string contentType = file.ContentType;
+                        if (action == "save")
+                        {
+                            if (!System.IO.File.Exists(fullName))
+                            {
+                                using (FileStream fsSource = new FileStream(fullName, FileMode.Create))
+                                {
+                                    file.CopyTo(fsSource);
+                                    fsSource.Close();
+                                }
+                                using (FileStream fsSource = new FileStream(fullName, FileMode.Open, FileAccess.Read))
+                                {
+                                    BinaryReader br = new BinaryReader(fsSource);
+                                    long numBytes = new FileInfo(fullName).Length;
+                                    byte[] bytes = br.ReadBytes((int)numBytes);
+                                    UploadQuery(filename, contentType, bytes, data[0].Id);
+                                }
+                            }
+                            else
+                            {
+                                existFiles.Add(filename);
+                            }
+                        }
+                        else if (action == "replace")
+                        {
+                            FileManagerResponse detailsResponse = this.GetFiles(path, false, data);                         
+                            if (System.IO.File.Exists(fullName))
+                            {
+                                System.IO.File.Delete(fullName);
 
+                                foreach (FileManagerDirectoryContent newData in detailsResponse.Files)
+                                {
+                                    string existingFileName = newData.Name.ToString();
+                                    if (existingFileName == filename)
+                                    {
+                                        this.Delete(path, null, newData);
+                                    }
+                                }
+                            }
+                            using (FileStream fsSource = new FileStream(fullName, FileMode.Create))
+                            {
+                                file.CopyTo(fsSource);
+                                fsSource.Close();
+                            }
+                            using (FileStream fsSource = new FileStream(fullName, FileMode.Open, FileAccess.Read))
+                            {
+                                BinaryReader br = new BinaryReader(fsSource);
+                                long numBytes = new FileInfo(fullName).Length;
+                                byte[] bytes = br.ReadBytes((int)numBytes);
+                                UploadQuery(filename, contentType, bytes, data[0].Id);
+                             }
+                        }
+                        else if (action == "keepboth")
+                        {
+                            string newName = fullName;
+                            int index = newName.LastIndexOf(".");
+                            if (index >= 0)
+                            {
+                                newName = newName.Substring(0, index);
+                            }
+                            int fileCount = 0;
+                            while (System.IO.File.Exists(newName + (fileCount > 0 ? "(" + fileCount.ToString() + ")" + Path.GetExtension(filename) : Path.GetExtension(filename))))
+                            {
+                                fileCount++;
+                            }
+
+                            newName = newName + (fileCount > 0 ? "(" + fileCount.ToString() + ")" : "") + Path.GetExtension(filename);
+                            string newFileName = Path.GetFileName(newName);
+                            using (FileStream fsSource = new FileStream(newName, FileMode.Create))
+                            {
+                                file.CopyTo(fsSource);
+                                fsSource.Close();
+                            }
+                            using (FileStream fsSource = new FileStream(newName, FileMode.Open, FileAccess.Read))
+                            {
+                                BinaryReader br = new BinaryReader(fsSource);
+                                long numBytes = new FileInfo(newName).Length;
+                                byte[] bytes = br.ReadBytes((int)numBytes);
+                                UploadQuery(newFileName, contentType, bytes, data[0].Id);
+                            }
+                        }
+                    }
+                }
+                if (existFiles.Count != 0)
+                {
+                    ErrorDetails er = new ErrorDetails();
+                    er.FileExists = existFiles;
+                    er.Code = "400";
+                    er.Message = "File Already Exists";
+                    uploadResponse.Error = er;
                 }
             }
             catch (FileNotFoundException ex) { throw ex; }
