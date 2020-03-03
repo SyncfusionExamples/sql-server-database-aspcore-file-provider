@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased]
+
+### SQL Server File System Provider
+
+#### New Features
+
+- `#151515` - Support has been provided for upload customization.
+
 ## 17.3.14 (2019-10-04)
 
 ### SQL Server File System Provider
