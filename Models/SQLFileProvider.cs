@@ -11,6 +11,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Win32;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
+using System.Runtime.InteropServices.WindowsRuntime;
 
 
 namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
@@ -29,6 +30,8 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
         private string folderEntryName = "";
         private string initEntry = "";
         private string previousEntryName = "";
+        AccessDetails AccessDetails = new AccessDetails();
+        private string accessMessage = string.Empty;
 
         // Sets the configuration
         public SQLFileProvider(IConfiguration configuration) { this.configuration = configuration; }
@@ -47,6 +50,12 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
             tableName = sqlTableName;
             rootId = tableID;
         }
+
+        public void SetRules(AccessDetails details)
+        {
+            this.AccessDetails = details;
+        }
+
         // Reads the files from SQL table
         public FileManagerResponse GetFiles(string path, bool showHiddenItems, params FileManagerDirectoryContent[] data)
         {
@@ -54,92 +63,286 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
             string parentID = "";
             string isRoot = "";
             sqlConnection.Open();
-            if (path == "/")
-            {
-                parentID = this.rootId;
-                try
-                {
-                    SqlDataReader reader = (new SqlCommand(("select ItemID from " + this.tableName + " where ParentID='" + rootId + "'"), sqlConnection)).ExecuteReader();
-                    while (reader.Read()) { isRoot = reader["ItemID"].ToString(); }
-                }
-                catch (SqlException ex) { Console.WriteLine(ex.ToString()); }
-                finally { sqlConnection.Close(); }
-            }
-            else
-            {
-                try
-                {
-                    SqlDataReader reader = (new SqlCommand(("select ParentID from " + this.tableName + " where ItemID='" + data[0].Id + "'"), sqlConnection)).ExecuteReader();
-                    while (reader.Read()) { parentID = reader["ParentID"].ToString(); }
-                }
-                catch (SqlException ex) { Console.WriteLine(ex.ToString()); }
-                finally { sqlConnection.Close(); }
-            }
-
-            FileManagerDirectoryContent cwd = new FileManagerDirectoryContent();
-            List<FileManagerDirectoryContent> files = new List<FileManagerDirectoryContent>();
             FileManagerResponse readResponse = new FileManagerResponse();
             try
             {
+                if (path == "/")
+                {
+                    parentID = this.rootId;
+                    try
+                    {
+                        SqlDataReader reader = (new SqlCommand(("select ItemID from " + this.tableName + " where ParentID='" + rootId + "'"), sqlConnection)).ExecuteReader();
+                        while (reader.Read()) { isRoot = reader["ItemID"].ToString(); }
+                    }
+                    catch (SqlException ex) { Console.WriteLine(ex.ToString()); }
+                    finally { sqlConnection.Close(); }
+                }
+                else
+                {
+                    try
+                    {
+                        SqlDataReader reader = (new SqlCommand(("select ParentID from " + this.tableName + " where ItemID='" + data[0].Id + "'"), sqlConnection)).ExecuteReader();
+                        while (reader.Read()) { parentID = reader["ParentID"].ToString(); }
+                    }
+                    catch (SqlException ex) { Console.WriteLine(ex.ToString()); }
+                    finally { sqlConnection.Close(); }
+                }
 
-                SqlConnection sqlConnection = new SqlConnection(this.connectionString);
+                FileManagerDirectoryContent cwd = new FileManagerDirectoryContent();
+                List<FileManagerDirectoryContent> files = new List<FileManagerDirectoryContent>();
+                try
+                {
+
+                    SqlConnection sqlConnection = new SqlConnection(this.connectionString);
+                    try
+                    {
+                        sqlConnection.Open();
+                        SqlDataReader reader = (new SqlCommand(("select * from " + this.tableName + ((data.Length == 0) ? (" where ParentID='" + parentID) : " where ItemID='" + data[0].Id) + "'"), sqlConnection)).ExecuteReader();
+                        while (reader.Read())
+                        {
+                            cwd = new FileManagerDirectoryContent
+                            {
+                                Name = reader["Name"].ToString().Trim(),
+                                Size = (long)reader["Size"],
+                                IsFile = (bool)reader["IsFile"],
+                                FilterPath = data.Length > 0 ? data[0].FilterPath : "",
+                                DateModified = (DateTime)reader["DateModified"],
+                                DateCreated = (DateTime)reader["DateCreated"],
+                                Type = GetDefaultExtension(reader["MimeType"].ToString()),
+                                Id = reader["ItemID"].ToString(),
+                                HasChild = (bool)reader["HasChild"],
+                                ParentID = reader["ParentID"].ToString(),
+                            };
+                            AccessPermission permission = GetPermission(cwd.Id, cwd.ParentID, cwd.Name, cwd.IsFile, path);
+                            cwd.Permission = permission;
+                        }
+                    }
+                    catch (SqlException ex) { Console.WriteLine(ex.ToString()); }
+                    finally { sqlConnection.Close(); }
+                }
+                catch (SqlException e) { Console.WriteLine("Error Generated. Details: " + e.ToString()); }
                 try
                 {
                     sqlConnection.Open();
-                    SqlDataReader reader = (new SqlCommand(("select * from " + this.tableName + ((data.Length == 0) ? (" where ParentID='" + parentID) : " where ItemID='" + data[0].Id) + "'"), sqlConnection)).ExecuteReader();
+                    SqlDataReader reader = (new SqlCommand(("select * from " + this.tableName + " where ParentID = '" + ((path == "/") ? isRoot : data[0].Id) + "'"), sqlConnection)).ExecuteReader();
                     while (reader.Read())
                     {
-                        cwd = new FileManagerDirectoryContent
+                        var childFiles = new FileManagerDirectoryContent
                         {
                             Name = reader["Name"].ToString().Trim(),
                             Size = (long)reader["Size"],
                             IsFile = (bool)reader["IsFile"],
-                            FilterPath = data.Length > 0 ? data[0].FilterPath : "",
                             DateModified = (DateTime)reader["DateModified"],
                             DateCreated = (DateTime)reader["DateCreated"],
+                            HasChild = (bool)reader["HasChild"],
                             Type = GetDefaultExtension(reader["MimeType"].ToString()),
                             Id = reader["ItemID"].ToString(),
-                            HasChild = (bool)reader["HasChild"]
+                            ParentID = reader["ParentID"].ToString(),
                         };
+
+                        AccessPermission permission = GetPermission(childFiles.Id, childFiles.ParentID, childFiles.Name, childFiles.IsFile, path);
+                        childFiles.Permission = permission;
+                        files.Add(childFiles);
                     }
+                    reader.Close();
+
+                    foreach (var file in files)
+                    {
+                        file.FilterId = GetFilterId(file.Id);
+                        file.FilterPath = data.Length != 0 ? GetFilterPath(file.Id) : "/";
+                    }
+
                 }
                 catch (SqlException ex) { Console.WriteLine(ex.ToString()); }
                 finally { sqlConnection.Close(); }
-            }
-            catch (SqlException e) { Console.WriteLine("Error Generated. Details: " + e.ToString()); }
-            try
-            {
-                sqlConnection.Open();
-                SqlDataReader reader = (new SqlCommand(("select * from " + this.tableName + " where ParentID = '" + ((path == "/") ? isRoot : data[0].Id) + "'"), sqlConnection)).ExecuteReader();
-                while (reader.Read())
-                {
-                    var childFiles = new FileManagerDirectoryContent
-                    {
-                        Name = reader["Name"].ToString().Trim(),
-                        Size = (long)reader["Size"],
-                        IsFile = (bool)reader["IsFile"],
-                        DateModified = (DateTime)reader["DateModified"],
-                        DateCreated = (DateTime)reader["DateCreated"],
-                        HasChild = (bool)reader["HasChild"],
-                        Type = GetDefaultExtension(reader["MimeType"].ToString()),
-                        Id = reader["ItemID"].ToString()
-                    };
-                    files.Add(childFiles);
-                }
-                reader.Close();
-                foreach (var file in files)
-                {
-                    file.FilterId = GetFilterId(file.Id);
-                    file.FilterPath = data.Length != 0 ? GetFilterPath(file.Id) : "/";
-                }
+                readResponse.Files = files;
+                readResponse.CWD = cwd;
 
+                if (cwd.Permission != null && !cwd.Permission.Read)
+                {
+                    readResponse.Files = null;
+                    accessMessage = cwd.Permission.Message;
+                    throw new UnauthorizedAccessException("'" + cwd.Name + "' is not accessible. You need permission to perform the read action.");
+                }
+                return readResponse;
             }
-            catch (SqlException ex) { Console.WriteLine(ex.ToString()); }
-            finally { sqlConnection.Close(); }
-            readResponse.Files = files;
-            readResponse.CWD = cwd;
-            return readResponse;
+            catch (Exception e)
+            {
+                ErrorDetails error = new ErrorDetails();
+                error.Message = e.Message.ToString();
+                error.Code = error.Message.Contains("is not accessible. You need permission") ? "401" : "417";
+                if ((error.Code == "401") && !string.IsNullOrEmpty(accessMessage)) { error.Message = accessMessage; }
+                readResponse.Error = error;
+                return readResponse;
+            }
         }
+
+        protected AccessPermission GetPermission(string id,  string parentId, string name, bool isFile, string path)
+        {
+            AccessPermission FilePermission = new AccessPermission();
+            if (isFile)
+            {
+                if (this.AccessDetails.AccessRules == null)
+                {
+                    return null;
+                }
+                string nameExtension = Path.GetExtension(name).ToLower();
+                AccessRule accessFileRule = new AccessRule();
+                foreach (AccessRule fileRule in AccessDetails.AccessRules)
+                {
+                    if (!string.IsNullOrEmpty(fileRule.Id) && fileRule.IsFile && (fileRule.Role == null || fileRule.Role == AccessDetails.Role))
+                    {
+                        if (id == fileRule.Id)
+                        {
+                            FilePermission = UpdateFileRules(FilePermission, fileRule, name);
+                        }
+                        else if (fileRule.Id.IndexOf("*.*") > -1)
+                        {
+                            string parentPath = fileRule.Id.Substring(0, fileRule.Id.IndexOf("*.*"));
+                            if (parentPath == "")
+                            {
+                                FilePermission = UpdateFileRules(FilePermission, fileRule, name);
+                            }
+                            else
+                            {
+                                string idValue = parentPath.Substring(0, parentPath.LastIndexOf("/"));
+                                bool isAccessId = path.Contains(idValue);
+                                if (idValue == parentId || isAccessId)
+                                {
+                                    accessFileRule = UpdateFilePermission(fileRule, parentPath, id);
+                                    FilePermission = UpdateFileRules(FilePermission, accessFileRule, name);
+                                }
+                            }
+                        }
+                        else if (fileRule.Id.IndexOf("*.") > -1)
+                        {
+                            string pathExtension = Path.GetExtension(fileRule.Id).ToLower();
+                            string parentPath = fileRule.Id.Substring(0, fileRule.Id.IndexOf("*."));
+                            if (parentPath == "")
+                            {
+                                if (pathExtension == nameExtension)
+                                {
+                                    FilePermission = UpdateFileRules(FilePermission, fileRule, name);
+                                }
+                            }
+                            else
+                            {
+                                string idValue = parentPath.Substring(0, parentPath.LastIndexOf("/"));
+                                bool isAccessId = path.Contains(idValue);
+                                if ((idValue == parentId || isAccessId) && pathExtension == nameExtension)
+                                {
+                                    accessFileRule = UpdateFilePermission(fileRule, parentPath, id);
+                                    FilePermission = UpdateFileRules(FilePermission, accessFileRule, name);
+                                }
+                            }
+                        }
+                    }
+                }
+                return FilePermission;
+            }
+            else
+            {
+                AccessRule accessFolderRule = new AccessRule();
+
+                if (this.AccessDetails.AccessRules == null)
+                {
+                    return null;
+                }
+                foreach (AccessRule folderRule in AccessDetails.AccessRules)
+                {
+                    if (folderRule.Id != null && folderRule.IsFile == false && (folderRule.Role == null || folderRule.Role == AccessDetails.Role))
+                    {
+                        if (id == folderRule.Id)
+                        {
+                            FilePermission = UpdateFolderRules(FilePermission, folderRule, name);
+                        }
+                        else if (folderRule.Id.IndexOf("*") > -1)
+                        {
+                            string parentPath = folderRule.Id.Substring(0, folderRule.Id.IndexOf("*"));
+                            if (parentPath == "")
+                            {
+                                FilePermission = UpdateFolderRules(FilePermission, folderRule, name);
+                            }
+                            else
+                            {
+                                string idValue = parentPath.Substring(0, parentPath.LastIndexOf("/")); 
+                                if (idValue == parentId) 
+                                {
+                                    accessFolderRule = UpdateFolderPermission(folderRule, parentPath, id);
+                                    FilePermission = UpdateFolderRules(FilePermission, accessFolderRule, name);
+                                }
+                            }
+                        }
+                        else if (folderRule.Id.IndexOf("/") > -1)
+                        {
+                            string idValue = folderRule.Id.Substring(0, folderRule.Id.LastIndexOf("/"));
+                            bool isAccessId = path.Contains(idValue);
+                            if (id == idValue || parentId == idValue || isAccessId)
+                            {
+                                accessFolderRule = UpdateFolderPermission(folderRule, folderRule.Id, id);
+                                FilePermission = UpdateFolderRules(FilePermission, accessFolderRule, name);
+                            }
+                        }
+                    }
+                }
+                return FilePermission;
+            }
+        }
+
+        protected AccessRule UpdateFilePermission(AccessRule accessRule, string parentPath, string id)
+        {
+            AccessRule accessFileRule = new AccessRule();
+            accessFileRule.Copy = accessRule.Copy;
+            accessFileRule.Download = accessRule.Download;
+            accessFileRule.Write = accessRule.Write;
+            accessFileRule.Id = parentPath + id;
+            accessFileRule.Read = accessRule.Read;
+            accessFileRule.Role = accessRule.Role;
+            accessFileRule.Message = accessRule.Message;
+            return accessFileRule;
+        }
+
+        protected AccessRule UpdateFolderPermission(AccessRule accessRule, string parentPath, string id)
+        {
+            AccessRule accessFolderRule = new AccessRule();
+            accessFolderRule.Copy = accessRule.Copy;
+            accessFolderRule.Download = accessRule.Download;
+            accessFolderRule.Write = accessRule.Write;
+            accessFolderRule.WriteContents = accessRule.WriteContents;
+            accessFolderRule.Id = parentPath + id;
+            accessFolderRule.Read = accessRule.Read;
+            accessFolderRule.Role = accessRule.Role;
+            accessFolderRule.Upload = accessRule.Upload;
+            accessFolderRule.Message = accessRule.Message;
+            return accessFolderRule;
+        }
+
+        protected virtual AccessPermission UpdateFileRules(AccessPermission filePermission, AccessRule fileRule, string fileName)
+        {
+            filePermission.Copy = HasPermission(fileRule.Copy);
+            filePermission.Download = HasPermission(fileRule.Download);
+            filePermission.Write = HasPermission(fileRule.Write);
+            filePermission.Read = HasPermission(fileRule.Read);
+            filePermission.Message = string.IsNullOrEmpty(fileRule.Message) ? "'" + fileName + "' is not accessible. You need permission to perform the read action." : fileRule.Message;
+            return filePermission;
+        }
+        protected virtual AccessPermission UpdateFolderRules(AccessPermission folderPermission, AccessRule folderRule, string folderName)
+        {
+            folderPermission.Copy = HasPermission(folderRule.Copy);
+            folderPermission.Download = HasPermission(folderRule.Download);
+            folderPermission.Write = HasPermission(folderRule.Write);
+            folderPermission.WriteContents = HasPermission(folderRule.WriteContents);
+            folderPermission.Read = HasPermission(folderRule.Read);
+            folderPermission.Upload = HasPermission(folderRule.Upload);
+            folderPermission.Message = string.IsNullOrEmpty(folderRule.Message) ? "'" + folderName + "' is not accessible. You need permission to perform the read action." : folderRule.Message;
+            return folderPermission;
+        }
+
+        protected bool HasPermission(Permission rule)
+        {
+            return rule == Permission.Allow ? true : false;
+        }
+
         // Creates a new folder
         public FileManagerResponse Create(string path, string name, params FileManagerDirectoryContent[] data)
         {
@@ -147,6 +350,14 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
             try
             {
                 FileManagerDirectoryContent createData = new FileManagerDirectoryContent();
+
+                AccessPermission createPermission = GetPermission(data[0].Id, data[0].ParentID, data[0].Name, data[0].IsFile, path);
+                if (createPermission != null && (!createPermission.Read || !createPermission.WriteContents))
+                {
+                    accessMessage = createPermission.Message;                       
+                    throw new UnauthorizedAccessException("'" + data[0].Name + "' is not accessible. You need permission to perform the writeContents action.");   
+                }
+
                 sqlConnection = setSQLDBConnection();
                 try
                 {
@@ -202,8 +413,11 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                                 DateModified = (DateTime)reader["DateModified"],
                                 DateCreated = (DateTime)reader["DateCreated"],
                                 Type = "",
-                                HasChild = (bool)reader["HasChild"]
+                                HasChild = (bool)reader["HasChild"],
+                                ParentID = reader["ParentID"].ToString().Trim(),
                             };
+                            AccessPermission permission = GetPermission(createData.Id, createData.ParentID, createData.Name, createData.IsFile, path);
+                            createData.Permission = permission;
                         }
                     }
                 }
@@ -215,8 +429,9 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
             catch (Exception e)
             {
                 ErrorDetails error = new ErrorDetails();
-                error.Code = "404";
                 error.Message = e.Message.ToString();
+                error.Code = error.Message.Contains("is not accessible. You need permission") ? "401" : "417";
+                if ((error.Code == "401") && !string.IsNullOrEmpty(accessMessage)) { error.Message = accessMessage; }
                 createResponse.Error = error;
                 return createResponse;
             }
@@ -225,84 +440,97 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
         // Downloads file(s) and folder(s)
         public FileStreamResult Download(string path, string[] names, params FileManagerDirectoryContent[] data)
         {
-            FileStreamResult fileStreamResult = null;
-            if (data != null)
+            try
             {
-                sqlConnection = setSQLDBConnection();
-                sqlConnection.Open();
-                foreach (FileManagerDirectoryContent item in data)
+                FileStreamResult fileStreamResult = null;
+                if (data != null)
                 {
-                    try
+                    sqlConnection = setSQLDBConnection();
+                    sqlConnection.Open();
+                    foreach (FileManagerDirectoryContent item in data)
                     {
-                        SqlDataReader myReader = (new SqlCommand("select * from " + tableName + " where ItemId =" + item.Id, sqlConnection)).ExecuteReader();
-                        while (myReader.Read())
+                        bool isFile = item.IsFile;
+                        AccessPermission permission = GetPermission(item.Id, item.ParentID, item.Name, isFile, path);
+                        if (permission != null && (!permission.Read || !permission.Download))
                         {
+                            throw new UnauthorizedAccessException("'" + item.Name + "' is not accessible. Access is denied.");
+                        }
+                        try
+                        {
+                            SqlDataReader myReader = (new SqlCommand("select * from " + tableName + " where ItemId =" + item.Id, sqlConnection)).ExecuteReader();
+                            while (myReader.Read())
+                            {
 
-                            if (File.Exists(Path.Combine(Path.GetTempPath(), item.Name)))
-                                File.Delete(Path.Combine(Path.GetTempPath(), item.Name));
-                            if (item.IsFile)
-                            {
-                                using (Stream file = File.OpenWrite(Path.Combine(Path.GetTempPath(), item.Name)))
+                                if (File.Exists(Path.Combine(Path.GetTempPath(), item.Name)))
+                                    File.Delete(Path.Combine(Path.GetTempPath(), item.Name));
+                                if (item.IsFile)
                                 {
-                                    file.Write(((byte[])myReader["Content"]), 0, ((byte[])myReader["Content"]).Length);
-                                    if (files.IndexOf(item.Name) == -1) files.Add(item.Name);
+                                    using (Stream file = File.OpenWrite(Path.Combine(Path.GetTempPath(), item.Name)))
+                                    {
+                                        file.Write(((byte[])myReader["Content"]), 0, ((byte[])myReader["Content"]).Length);
+                                        if (files.IndexOf(item.Name) == -1) files.Add(item.Name);
+                                    }
                                 }
+                                else if (files.IndexOf(item.Name) == -1) files.Add(item.Name);
                             }
-                            else if (files.IndexOf(item.Name) == -1) files.Add(item.Name);
+                            myReader.Close();
                         }
-                        myReader.Close();
+                        catch (Exception ex) { throw ex; }
                     }
-                    catch (Exception ex) { throw ex; }
-                }
-                sqlConnection.Close();
-                if (files.Count == 1 && data[0].IsFile)
-                {
-                    try
+                    sqlConnection.Close();
+                    if (files.Count == 1 && data[0].IsFile)
                     {
-                        fileStreamResult = new FileStreamResult((new FileStream(Path.Combine(Path.GetTempPath(), files[0]), FileMode.Open, FileAccess.Read)), "APPLICATION/octet-stream");
-                        fileStreamResult.FileDownloadName = files[0];
-                    }
-                    catch (Exception ex) { throw ex; }
-                }
-                else
-                {
-                    ZipArchiveEntry zipEntry;
-                    ZipArchive archive;
-                    var tempPath = Path.Combine(Path.GetTempPath(), "temp.zip");
-                    try
-                    {
-                        using (archive = ZipFile.Open(tempPath, ZipArchiveMode.Update))
+                        try
                         {
-                            for (var i = 0; i < files.Count; i++)
-                            {
-                                bool isFile = false;
-                                sqlConnection.Open();
-                                SqlCommand downloadCommand = new SqlCommand("select * from " + tableName + " where Name ='" + files[i] + "'", sqlConnection);
-                                SqlDataReader downloadCommandReader = downloadCommand.ExecuteReader();
-                                while (downloadCommandReader.Read()) { isFile = (bool)downloadCommandReader["IsFile"]; }
-                                sqlConnection.Close();
-                                if (isFile)
-                                    zipEntry = archive.CreateEntryFromFile(Path.GetTempPath() + files[i], files[i], CompressionLevel.Fastest);
-                                else
-                                {
-                                    sqlConnection.Open();
-                                    this.folderEntryName = files[i];
-                                    this.initEntry = files[i];
-                                    DownloadFolder(archive, files[i], sqlConnection);
-                                    sqlConnection.Close();
-                                }
-                            }
-                            archive.Dispose();
-                            fileStreamResult = new FileStreamResult((new FileStream(tempPath, FileMode.Open, FileAccess.Read, FileShare.Delete)), "APPLICATION/octet-stream");
-                            fileStreamResult.FileDownloadName = files.Count == 1 ? data[0].Name + ".zip" : "Files.zip";
-                            if (File.Exists(Path.Combine(Path.GetTempPath(), "temp.zip")))
-                                File.Delete(Path.Combine(Path.GetTempPath(), "temp.zip"));
+                            fileStreamResult = new FileStreamResult((new FileStream(Path.Combine(Path.GetTempPath(), files[0]), FileMode.Open, FileAccess.Read)), "APPLICATION/octet-stream");
+                            fileStreamResult.FileDownloadName = files[0];
                         }
+                        catch (Exception ex) { throw ex; }
                     }
-                    catch (Exception ex) { throw ex; }
+                    else
+                    {
+                        ZipArchiveEntry zipEntry;
+                        ZipArchive archive;
+                        var tempPath = Path.Combine(Path.GetTempPath(), "temp.zip");
+                        try
+                        {
+                            using (archive = ZipFile.Open(tempPath, ZipArchiveMode.Update))
+                            {
+                                for (var i = 0; i < files.Count; i++)
+                                {
+                                    bool isFile = false;
+                                    sqlConnection.Open();
+                                    SqlCommand downloadCommand = new SqlCommand("select * from " + tableName + " where Name ='" + files[i] + "'", sqlConnection);
+                                    SqlDataReader downloadCommandReader = downloadCommand.ExecuteReader();
+                                    while (downloadCommandReader.Read()) { isFile = (bool)downloadCommandReader["IsFile"]; }
+                                    sqlConnection.Close();
+                                    if (isFile)
+                                        zipEntry = archive.CreateEntryFromFile(Path.GetTempPath() + files[i], files[i], CompressionLevel.Fastest);
+                                    else
+                                    {
+                                        sqlConnection.Open();
+                                        this.folderEntryName = files[i];
+                                        this.initEntry = files[i];
+                                        DownloadFolder(archive, files[i], sqlConnection);
+                                        sqlConnection.Close();
+                                    }
+                                }
+                                archive.Dispose();
+                                fileStreamResult = new FileStreamResult((new FileStream(tempPath, FileMode.Open, FileAccess.Read, FileShare.Delete)), "APPLICATION/octet-stream");
+                                fileStreamResult.FileDownloadName = files.Count == 1 ? data[0].Name + ".zip" : "Files.zip";
+                                if (File.Exists(Path.Combine(Path.GetTempPath(), "temp.zip")))
+                                    File.Delete(Path.Combine(Path.GetTempPath(), "temp.zip"));
+                            }
+                        }
+                        catch (Exception ex) { throw ex; }
+                    }
                 }
+                return fileStreamResult;
             }
-            return fileStreamResult;
+            catch (Exception)
+            {
+                return null;
+            }
         }
 
         public void DownloadFolder(ZipArchive archive, string folderName, SqlConnection sqlConnection)
@@ -381,83 +609,99 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
             string previousName = "";
             FileManagerResponse getDetailResponse = new FileManagerResponse();
             FileDetails detailFiles = new FileDetails();
-            string queryString = "select * from " + this.tableName + " where ItemID='" + (data[0].Id == null ? this.rootId : data[0].Id) + "'";
-            bool isNamesAvailable = names.Length > 0 ? true : false;
             try
             {
-                string sizeValue = "";
-                var listOfStrings = new List<string>();
-                long size = 0;
-                long folderValue = 0;
-                if (names.Length == 0 && data.Length != 0)
+                string queryString = "select * from " + this.tableName + " where ItemID='" + (data[0].Id == null ? this.rootId : data[0].Id) + "'";
+                bool isNamesAvailable = names.Length > 0 ? true : false;
+                try
                 {
-                    List<string> values = new List<string>();
-                    foreach (var item in data) { values.Add(item.Name); }
-                    names = values.ToArray();
-                }
-                if (!data[0].IsFile && names.Length == 1)
-                    sizeValue = ByteConversion(GetFolderSize(new string[] { data[0].Id }));
-                else
-                {
-                    foreach (var item in data)
+                    string sizeValue = "";
+                    var listOfStrings = new List<string>();
+                    long size = 0;
+                    long folderValue = 0;
+                    if (names.Length == 0 && data.Length != 0)
                     {
-                        if (!item.IsFile)
-                            listOfStrings.Add(item.Id);
+                        List<string> values = new List<string>();
+                        foreach (var item in data) { values.Add(item.Name); }
+                        names = values.ToArray();
                     }
-                    folderValue = listOfStrings.Count > 0 ? GetFolderSize(listOfStrings.ToArray()) : 0;
-                }
-                sqlConnection.Open();
-                string rootQuery = "select * from " + this.tableName + " where ParentId='" + this.rootId + "'";
-                SqlDataReader rootQueryReader = (new SqlCommand(rootQuery, sqlConnection)).ExecuteReader();
-                while (rootQueryReader.Read()) { rootDirectory = rootQueryReader["Name"].ToString().Trim(); }
-                sqlConnection.Close();
-                sqlConnection.Open();
-                SqlDataReader reader = (new SqlCommand(queryString, sqlConnection)).ExecuteReader();
-                if (names.Length == 1)
-                {
-                    string detailsID = "";
-                    while (reader.Read())
+                    if (!data[0].IsFile && names.Length == 1)
+                        sizeValue = ByteConversion(GetFolderSize(new string[] { data[0].Id }));
+                    else
                     {
-                        detailFiles = new FileDetails
+                        foreach (var item in data)
                         {
-                            Name = reader["Name"].ToString().Trim(),
-                            IsFile = (bool)reader["IsFile"],
-                            Size = (bool)reader["IsFile"] ? ByteConversion(long.Parse((reader["Size"]).ToString())) : sizeValue,
-                            Modified = (DateTime)reader["DateModified"],
-                            Created = (DateTime)reader["DateCreated"],
-                        };
-                        detailsID = reader["ItemID"].ToString().Trim();
-                    }
-                    reader.Close();
-                    detailFiles.Location = (rootDirectory + GetFilterPath(detailsID) + detailFiles.Name).Replace("/", @"\");
-                }
-                else
-                {
-                    detailFiles = new FileDetails();
-                    foreach (var item in data)
-                    {
-                        detailFiles.Name = previousName == "" ? previousName = item.Name : previousName = previousName + ", " + item.Name;
-                        previousPath = previousPath == "" ? rootDirectory + item.FilterPath : previousPath;
-                        if (previousPath == rootDirectory + item.FilterPath && !isVariousFolders)
-                        {
-                            previousPath = rootDirectory + item.FilterPath;
-                            detailFiles.Location = (rootDirectory + (item.FilterPath).Replace("/", @"\")).Substring(0, (previousPath.Length - 1));
+                            if (!item.IsFile)
+                                listOfStrings.Add(item.Id);
                         }
-                        else
-                        {
-                            isVariousFolders = true;
-                            detailFiles.Location = "Various Folders";
-                        }
-                        if (item.IsFile) size = size + item.Size;
+                        folderValue = listOfStrings.Count > 0 ? GetFolderSize(listOfStrings.ToArray()) : 0;
                     }
-                    detailFiles.Size = ByteConversion((long)(size + folderValue));
-                    detailFiles.MultipleFiles = true;
+                    sqlConnection.Open();
+                    string rootQuery = "select * from " + this.tableName + " where ParentId='" + this.rootId + "'";
+                    SqlDataReader rootQueryReader = (new SqlCommand(rootQuery, sqlConnection)).ExecuteReader();
+                    while (rootQueryReader.Read()) { rootDirectory = rootQueryReader["Name"].ToString().Trim(); }
+                    sqlConnection.Close();
+                    sqlConnection.Open();
+                    SqlDataReader reader = (new SqlCommand(queryString, sqlConnection)).ExecuteReader();
+                    if (names.Length == 1)
+                    {
+                        string detailsID = "";
+                        string detailsParentId = "";
+                        string absoluteFilePath = Path.Combine(Path.GetTempPath(), names[0]);
+                        while (reader.Read())
+                        {
+                            detailFiles = new FileDetails
+                            {
+                                Name = reader["Name"].ToString().Trim(),
+                                IsFile = (bool)reader["IsFile"],
+                                Size = (bool)reader["IsFile"] ? ByteConversion(long.Parse((reader["Size"]).ToString())) : sizeValue,
+                                Modified = (DateTime)reader["DateModified"],
+                                Created = (DateTime)reader["DateCreated"]
+                            };
+                            detailsID = reader["ItemID"].ToString().Trim();
+                            detailsParentId = reader["ParentID"].ToString().Trim();
+                            AccessPermission permission = GetPermission(detailsID, detailsParentId, detailFiles.Name, detailFiles.IsFile, path);
+                            detailFiles.Permission = permission;
+                        }
+                        reader.Close();
+                        detailFiles.Location = (rootDirectory + GetFilterPath(detailsID) + detailFiles.Name).Replace("/", @"\");
+                    }
+                    else
+                    {
+                        detailFiles = new FileDetails();
+                        foreach (var item in data)
+                        {
+                            detailFiles.Name = previousName == "" ? previousName = item.Name : previousName = previousName + ", " + item.Name;
+                            previousPath = previousPath == "" ? rootDirectory + item.FilterPath : previousPath;
+                            if (previousPath == rootDirectory + item.FilterPath && !isVariousFolders)
+                            {
+                                previousPath = rootDirectory + item.FilterPath;
+                                detailFiles.Location = (rootDirectory + (item.FilterPath).Replace("/", @"\")).Substring(0, (previousPath.Length - 1));
+                            }
+                            else
+                            {
+                                isVariousFolders = true;
+                                detailFiles.Location = "Various Folders";
+                            }
+                            if (item.IsFile) size = size + item.Size;
+                        }
+                        detailFiles.Size = ByteConversion((long)(size + folderValue));
+                        detailFiles.MultipleFiles = true;
+                    }
                 }
+                catch (SqlException ex) { Console.WriteLine(ex.ToString()); }
+                finally { sqlConnection.Close(); }
+                getDetailResponse.Details = detailFiles;
+                return getDetailResponse;
             }
-            catch (SqlException ex) { Console.WriteLine(ex.ToString()); }
-            finally { sqlConnection.Close(); }
-            getDetailResponse.Details = detailFiles;
-            return getDetailResponse;
+            catch (Exception e)
+            {
+                ErrorDetails error = new ErrorDetails();
+                error.Message = e.Message.ToString();
+                error.Code = error.Message.Contains("is not accessible. You need permission") ? "401" : "417";
+                getDetailResponse.Error = error;
+                return getDetailResponse;
+            }
         }
         // Gets the file type
         public static string GetDefaultExtension(string mimeType)
@@ -470,23 +714,42 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
             result = value != null ? value.ToString() : string.Empty;
             return result;
         }
-        // Returns the image
-        public FileStreamResult GetImage(string path, string id, bool allowCompress, ImageSize size, params FileManagerDirectoryContent[] data)
+
+        public virtual AccessPermission GetFilePermission(string id, string parentId, string path)
         {
-            sqlConnection = setSQLDBConnection();
-            sqlConnection.Open();
-            SqlCommand myCommand = new SqlCommand("select * from " + tableName + " where ItemID =" + id, sqlConnection);
-            SqlDataReader myReader = myCommand.ExecuteReader();
-            while (myReader.Read())
+            string fileName = Path.GetFileName(path);
+            return GetPermission(id, parentId, fileName, true, path);
+        }
+
+        // Returns the image
+        public FileStreamResult GetImage(string path, string parentId, string id, bool allowCompress, ImageSize size, params FileManagerDirectoryContent[] data)
+        {
+            try
             {
-                try
+                AccessPermission permission = GetFilePermission(id, parentId, path);
+                if (permission != null && !permission.Read)
                 {
-                    return new FileStreamResult(new MemoryStream((byte[])myReader["Content"]), "APPLICATION/octet-stream"); ;
+                    return null;
                 }
-                catch (Exception ex) { throw ex; }
+                sqlConnection = setSQLDBConnection();
+                sqlConnection.Open();
+                SqlCommand myCommand = new SqlCommand("select * from " + tableName + " where ItemID =" + id, sqlConnection);
+                SqlDataReader myReader = myCommand.ExecuteReader();
+                while (myReader.Read())
+                {
+                    try
+                    {
+                        return new FileStreamResult(new MemoryStream((byte[])myReader["Content"]), "APPLICATION/octet-stream"); ;
+                    }
+                    catch (Exception ex) { throw ex; }
+                }
+                sqlConnection.Close();
+                return null;
             }
-            sqlConnection.Close();
-            return null;
+            catch (Exception)
+            {
+                return null;
+            }
         }
         // Deletes the file(s) or folder(s)
         public FileManagerResponse Delete(string path, string[] names, params FileManagerDirectoryContent[] data)
@@ -500,6 +763,12 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                 sqlConnection = setSQLDBConnection();
                 foreach (var file in data)
                 {
+                    AccessPermission permission = GetPermission(file.Id, file.ParentID, file.Name, file.IsFile, path);
+                    if (permission != null && (!permission.Read || !permission.Write))
+                    {
+                        accessMessage = permission.Message;
+                        throw new UnauthorizedAccessException("'" + file.Name + "' is not accessible.  you need permission to perform the write action.");
+                    }
                     try
                     {
                         sqlConnection.Open();
@@ -580,8 +849,9 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
             catch (Exception e)
             {
                 ErrorDetails error = new ErrorDetails();
-                error.Code = "404";
                 error.Message = e.Message.ToString();
+                error.Code = error.Message.Contains("is not accessible. You need permission") ? "401" : "417";
+                if ((error.Code == "401") && !string.IsNullOrEmpty(accessMessage)) { error.Message = accessMessage; }
                 remvoeResponse.Error = error;
                 return remvoeResponse;
             }
@@ -593,6 +863,12 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
 
             try
             {
+                AccessPermission permission = GetPermission(data[0].Id, data[0].ParentID, data[0].Name, data[0].IsFile, path);
+                if (permission != null && (!permission.Read || !permission.Upload))
+                {
+                     accessMessage = permission.Message;
+                     throw new UnauthorizedAccessException("'" + data[0].Name + "' is not accessible. You need permission to perform the upload action.");
+                }
                 List<string> existFiles = new List<string>();
                 foreach (IFormFile file in uploadFiles)
                 {
@@ -691,9 +967,18 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                     error.Message = "File Already Exists";
                     uploadResponse.Error = error;
                 }
+                return uploadResponse;
             }
-            catch (FileNotFoundException ex) { throw ex; }
-            return uploadResponse;
+            catch (Exception e) 
+            {
+                ErrorDetails error = new ErrorDetails();
+                error.Message = e.Message.ToString();
+                error.Code = error.Message.Contains("is not accessible. You need permission") ? "401" : "417";
+                if ((error.Code == "401") && !string.IsNullOrEmpty(accessMessage)) { error.Message = accessMessage; }
+                uploadResponse.Error = error;
+                return uploadResponse;
+            }
+            
         }
         // Updates the data table after uploading the file
         public void UploadQuery(string fileName, string contentType, byte[] bytes, string parentId)
@@ -733,6 +1018,13 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
             FileManagerResponse renameResponse = new FileManagerResponse();
             try
             {
+                AccessPermission permission = GetPermission(data[0].Id, data[0].ParentID, data[0].Name, data[0].IsFile, path);
+                if (permission != null && (!permission.Read || !permission.Write))
+                {
+                    accessMessage = permission.Message;
+                    throw new UnauthorizedAccessException("'" + data[0].Name + "' is not accessible. You need permission");
+                }
+
                 FileManagerDirectoryContent renameData = new FileManagerDirectoryContent();
                 sqlConnection = setSQLDBConnection();
                 try
@@ -790,8 +1082,9 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
             catch (Exception e)
             {
                 ErrorDetails error = new ErrorDetails();
-                error.Code = "404";
                 error.Message = e.Message.ToString();
+                error.Code = error.Message.Contains("is not accessible. You need permission") ? "401" : "417";
+                if ((error.Code == "401") && !string.IsNullOrEmpty(accessMessage)) { error.Message = accessMessage; }
                 renameResponse.Error = error;
                 return renameResponse;
             }
@@ -841,6 +1134,13 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                 sqlConnection.Open();
                 cwd.FilterPath = GetFilterPath(data[0].Id);
                 sqlConnection.Close();
+                AccessPermission permission = GetPermission(cwd.Id, cwd.ParentID, cwd.Name, cwd.IsFile, path);
+                cwd.Permission = permission;
+                if (cwd.Permission != null && !cwd.Permission.Read)
+                {
+                    accessMessage = cwd.Permission.Message;
+                    throw new UnauthorizedAccessException("'" + cwd.Name + "' is not accessible. You need permission to perform the read action.");
+                }
                 searchResponse.CWD = cwd;
                 List<FileManagerDirectoryContent> foundFiles = new List<FileManagerDirectoryContent>();
                 List<string> availableFiles = new List<string>();
@@ -865,8 +1165,11 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                             DateCreated = (DateTime)reader["DateCreated"],
                             Type = GetDefaultExtension(reader["MimeType"].ToString()),
                             HasChild = (bool)reader["HasChild"],
-                            Id = reader["ItemId"].ToString().Trim()
+                            Id = reader["ItemId"].ToString().Trim(),
+                            ParentID = reader["ParentID"].ToString().Trim(),
                         };
+                        AccessPermission searchPermission = GetPermission(searchData.Id, searchData.ParentID, searchData.Name, searchData.IsFile, path);
+                        searchData.Permission = searchPermission;
                         if (searchData.Name != "Products") foundFiles.Add(searchData);
                     }
                     reader.Close();
@@ -882,10 +1185,10 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
             catch (Exception e)
             {
                 ErrorDetails error = new ErrorDetails();
-                error.Code = "404";
                 error.Message = e.Message.ToString();
+                error.Code = error.Message.Contains("is not accessible. You need permission") ? "401" : "417";
+                if ((error.Code == "401") && !string.IsNullOrEmpty(accessMessage)) { error.Message = accessMessage; }
                 searchResponse.Error = error;
-
                 return searchResponse;
             }
             finally { sqlConnection.Close(); }
@@ -924,123 +1227,179 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
             List<string> checkingId = new List<string>();
             sqlConnection = setSQLDBConnection();
             FileManagerResponse copyResponse = new FileManagerResponse();
-            sqlConnection.Open();
-            string checkingQuery = "with cte as (select ItemID, Name, ParentID from " + this.tableName + " where ParentID =" + data[0].Id + " union all select p.ItemID, p.Name, p.ParentID from Product p inner join cte on p.ParentID = cte.ItemID) select ItemID from cte;";
-            SqlDataReader copyCheckCommandReader = (new SqlCommand(checkingQuery, sqlConnection)).ExecuteReader();
-            while (copyCheckCommandReader.Read()) { checkingId.Add(copyCheckCommandReader["ItemID"].ToString()); }
-            sqlConnection.Close();
-            if (checkingId.IndexOf(targetData.Id) != -1)
+            try
+            {
+                sqlConnection.Open();
+                string checkingQuery = "with cte as (select ItemID, Name, ParentID from " + this.tableName + " where ParentID =" + data[0].Id + " union all select p.ItemID, p.Name, p.ParentID from Product p inner join cte on p.ParentID = cte.ItemID) select ItemID from cte;";
+                SqlDataReader copyCheckCommandReader = (new SqlCommand(checkingQuery, sqlConnection)).ExecuteReader();
+                while (copyCheckCommandReader.Read()) { checkingId.Add(copyCheckCommandReader["ItemID"].ToString()); }
+                sqlConnection.Close();
+
+                AccessPermission permission = GetPermission(data[0].Id, data[0].ParentID, data[0].Name, data[0].IsFile, path);
+                if (permission != null && (!permission.Read || !permission.WriteContents))
+                {
+                    accessMessage = permission.Message;
+                    throw new UnauthorizedAccessException("'" + data[0].Name + "' is not accessible. You need permission to perform the copy action.");
+                }
+                if (checkingId.IndexOf(targetData.Id) != -1)
+                {
+                    ErrorDetails error = new ErrorDetails();
+                    error.Code = "400";
+                    error.Message = "The destination folder is the subfolder of the source folder.";
+                    copyResponse.Error = error;
+                    return copyResponse;
+                }
+                foreach (var item in data)
+                {
+                    try
+                    {
+                        sqlConnection.Open();
+                        List<string> foldersId = new List<String>();
+                        List<string> lastInsertedItemId = new List<String>();
+                        string lastId = "";
+                        string copyQuery = "insert into " + tableName + " (Name, ParentID, Size, isFile, MimeType, Content, DateModified, DateCreated, HasChild, IsRoot, Type, FilterPath) select Name," + targetData.Id + " , Size, isFile, MimeType, Content, DateModified, DateCreated, HasChild, IsRoot, Type, FilterPath from " + tableName + " where ItemID = " + item.Id;
+                        SqlCommand copyQuerycommand = new SqlCommand(copyQuery, sqlConnection);
+                        copyQuerycommand.ExecuteNonQuery();
+                        lastId = GetLastInsertedValue();
+                        sqlConnection.Close();
+                        sqlConnection.Open();
+                        SqlDataReader reader = (new SqlCommand(("Select * from " + this.tableName + " where ItemID=" + item.Id), sqlConnection)).ExecuteReader();
+                        while (reader.Read())
+                        {
+                            var copyFiles = new FileManagerDirectoryContent
+                            {
+                                Name = reader["Name"].ToString().Trim(),
+                                Size = (long)reader["Size"],
+                                IsFile = (bool)reader["IsFile"],
+                                DateModified = DateTime.Now,
+                                DateCreated = DateTime.Now,
+                                HasChild = (bool)reader["HasChild"],
+                                FilterPath = targetData.FilterPath + "/" + targetData.Name + "/",
+                                Type = GetDefaultExtension(reader["MimeType"].ToString()),
+                                Id = reader["ItemID"].ToString()
+                            };
+                            if (!copyFiles.IsFile)
+                            {
+                                foldersId.Add(copyFiles.Id);
+                                lastInsertedItemId.Add(lastId);
+                            }
+                            files.Add(copyFiles);
+                        }
+                        reader.Close();
+                        foreach (var file in files) { file.FilterId = GetFilterId(file.Id); }
+                        if (foldersId.Count > 0)
+                            CopyFolderFiles(foldersId.ToArray(), lastInsertedItemId.ToArray(), sqlConnection);
+                    }
+                    catch (Exception e)
+                    {
+                        throw e;
+                    }
+                    finally { sqlConnection.Close(); }
+                }
+                copyResponse.Files = files;
+                return copyResponse;
+            }
+            catch (Exception e)
             {
                 ErrorDetails error = new ErrorDetails();
-                error.Code = "400";
-                error.Message = "The destination folder is the subfolder of the source folder.";
+                error.Message = e.Message.ToString();
+                error.Code = error.Message.Contains("is not accessible. You need permission") ? "401" : "417";
+                if ((error.Code == "401") && !string.IsNullOrEmpty(accessMessage)) { error.Message = accessMessage; }
                 copyResponse.Error = error;
                 return copyResponse;
             }
-            foreach (var item in data)
-            {
-                try
-                {
-                    sqlConnection.Open();
-                    List<string> foldersId = new List<String>();
-                    List<string> lastInsertedItemId = new List<String>();
-                    string lastId = "";
-                    string copyQuery = "insert into " + tableName + " (Name, ParentID, Size, isFile, MimeType, Content, DateModified, DateCreated, HasChild, IsRoot, Type, FilterPath) select Name," + targetData.Id + " , Size, isFile, MimeType, Content, DateModified, DateCreated, HasChild, IsRoot, Type, FilterPath from " + tableName + " where ItemID = " + item.Id;
-                    SqlCommand copyQuerycommand = new SqlCommand(copyQuery, sqlConnection);
-                    copyQuerycommand.ExecuteNonQuery();
-                    lastId = GetLastInsertedValue();
-                    sqlConnection.Close();
-                    sqlConnection.Open();
-                    SqlDataReader reader = (new SqlCommand(("Select * from " + this.tableName + " where ItemID=" + item.Id), sqlConnection)).ExecuteReader();
-                    while (reader.Read())
-                    {
-                        var copyFiles = new FileManagerDirectoryContent
-                        {
-                            Name = reader["Name"].ToString().Trim(),
-                            Size = (long)reader["Size"],
-                            IsFile = (bool)reader["IsFile"],
-                            DateModified = DateTime.Now,
-                            DateCreated = DateTime.Now,
-                            HasChild = (bool)reader["HasChild"],
-                            FilterPath = targetData.FilterPath + "/" + targetData.Name + "/",
-                            Type = GetDefaultExtension(reader["MimeType"].ToString()),
-                            Id = reader["ItemID"].ToString()
-                        };
-                        if (!copyFiles.IsFile)
-                        {
-                            foldersId.Add(copyFiles.Id);
-                            lastInsertedItemId.Add(lastId);
-                        }
-                        files.Add(copyFiles);
-                    }
-                    reader.Close();
-                    foreach (var file in files) { file.FilterId = GetFilterId(file.Id); }
-                    if (foldersId.Count > 0)
-                        CopyFolderFiles(foldersId.ToArray(), lastInsertedItemId.ToArray(), sqlConnection);
-                }
-                catch (Exception e) { throw e; }
-                finally { sqlConnection.Close(); }
-            }
-            copyResponse.Files = files;
-            return copyResponse;
         }
+
+        public virtual string[] GetFolderDetails(string path)
+        {
+            string[] str_array = path.Split('/'), fileDetails = new string[2];
+            string parentPath = "";
+            for (int i = 0; i < str_array.Length - 2; i++)
+            {
+                parentPath += str_array[i] + "/";
+            }
+            fileDetails[0] = parentPath;
+            fileDetails[1] = str_array[str_array.Length - 2];
+            return fileDetails;
+        }
+
         // Moves the selected file(s) or folder(s) to target path
         public FileManagerResponse Move(string path, string targetPath, string[] names, string[] replacedItemNames, FileManagerDirectoryContent targetData, params FileManagerDirectoryContent[] data)
         {
             List<FileManagerDirectoryContent> files = new List<FileManagerDirectoryContent>();
             sqlConnection = setSQLDBConnection();
             FileManagerResponse moveResponse = new FileManagerResponse();
-            List<string> checkingId = new List<string>();
-            sqlConnection.Open();
-            string checkingQuery = "with cte as (select ItemID, Name, ParentID from " + this.tableName + " where ParentID =" + data[0].Id + " union all select p.ItemID, p.Name, p.ParentID from Product p inner join cte on p.ParentID = cte.ItemID) select ItemID from cte;";
-            SqlDataReader moveCheckCommandReader = (new SqlCommand(checkingQuery, sqlConnection)).ExecuteReader();
-            while (moveCheckCommandReader.Read()) { checkingId.Add(moveCheckCommandReader["ItemID"].ToString()); }
-            sqlConnection.Close();
-            if (checkingId.IndexOf(targetData.Id) != -1)
+            try
+            {
+                List<string> checkingId = new List<string>();
+                sqlConnection.Open();
+                string checkingQuery = "with cte as (select ItemID, Name, ParentID from " + this.tableName + " where ParentID =" + data[0].Id + " union all select p.ItemID, p.Name, p.ParentID from Product p inner join cte on p.ParentID = cte.ItemID) select ItemID from cte;";
+                SqlDataReader moveCheckCommandReader = (new SqlCommand(checkingQuery, sqlConnection)).ExecuteReader();
+                while (moveCheckCommandReader.Read()) { checkingId.Add(moveCheckCommandReader["ItemID"].ToString()); }
+                sqlConnection.Close();
+
+                AccessPermission permission = GetPermission(data[0].Id, data[0].ParentID, data[0].Name, data[0].IsFile, path);
+                if (permission != null && (!permission.Read || !permission.WriteContents))
+                {
+                    accessMessage = permission.Message;
+                    throw new UnauthorizedAccessException("'" + data[0].Name + "' is not accessible. You need permission to perform the write action.");
+                }
+
+                if (checkingId.IndexOf(targetData.Id) != -1)
+                {
+                    ErrorDetails error = new ErrorDetails();
+                    error.Code = "400";
+                    error.Message = "The destination folder is the subfolder of the source folder.";
+                    moveResponse.Error = error;
+                    return moveResponse;
+                }
+                foreach (var item in data)
+                {
+                    sqlConnection.Open();
+                    try
+                    {
+                        string moveQuery = "update " + this.tableName + " SET ParentID='" + targetData.Id + "' where ItemID='" + item.Id + "'";
+                        SqlCommand moveQuerycommand = new SqlCommand(moveQuery, sqlConnection);
+                        moveQuerycommand.ExecuteNonQuery();
+                        sqlConnection.Close();
+                        sqlConnection.Open();
+                        string detailsQuery = "Select * from " + this.tableName + " where ItemID=" + item.Id;
+                        SqlCommand detailQuerycommand = new SqlCommand(detailsQuery, sqlConnection);
+                        SqlDataReader reader = detailQuerycommand.ExecuteReader();
+                        while (reader.Read())
+                        {
+                            var moveFiles = new FileManagerDirectoryContent
+                            {
+                                Name = reader["Name"].ToString().Trim(),
+                                Size = (long)reader["Size"],
+                                IsFile = (bool)reader["IsFile"],
+                                DateModified = DateTime.Now,
+                                DateCreated = DateTime.Now,
+                                HasChild = (bool)reader["HasChild"],
+                                FilterPath = targetData.FilterPath + "/" + targetData.Name + "/",
+                                Type = GetDefaultExtension(reader["MimeType"].ToString()),
+                                Id = reader["ItemID"].ToString()
+                            };
+                            files.Add(moveFiles);
+                        }
+                        reader.Close();
+                        foreach (var file in files) { file.FilterId = GetFilterId(file.Id); }
+                    }
+                    catch (Exception e) { throw e; }
+                    finally { sqlConnection.Close(); }
+                }
+                moveResponse.Files = files;
+                return moveResponse;
+            }
+            catch (Exception e)
             {
                 ErrorDetails error = new ErrorDetails();
-                error.Code = "400";
-                error.Message = "The destination folder is the subfolder of the source folder.";
+                error.Message = e.Message.ToString();
+                error.Code = e.Message.ToString().Contains("is not accessible. You need permission") ? "401" : "417";
+                if ((error.Code == "401") && !string.IsNullOrEmpty(accessMessage)) { error.Message = accessMessage; }
                 moveResponse.Error = error;
                 return moveResponse;
             }
-            foreach (var item in data)
-            {
-                sqlConnection.Open();
-                try
-                {
-                    string moveQuery = "update " + this.tableName + " SET ParentID='" + targetData.Id + "' where ItemID='" + item.Id + "'";
-                    SqlCommand moveQuerycommand = new SqlCommand(moveQuery, sqlConnection);
-                    moveQuerycommand.ExecuteNonQuery();
-                    sqlConnection.Close();
-                    sqlConnection.Open();
-                    string detailsQuery = "Select * from " + this.tableName + " where ItemID=" + item.Id;
-                    SqlCommand detailQuerycommand = new SqlCommand(detailsQuery, sqlConnection);
-                    SqlDataReader reader = detailQuerycommand.ExecuteReader();
-                    while (reader.Read())
-                    {
-                        var moveFiles = new FileManagerDirectoryContent
-                        {
-                            Name = reader["Name"].ToString().Trim(),
-                            Size = (long)reader["Size"],
-                            IsFile = (bool)reader["IsFile"],
-                            DateModified = DateTime.Now,
-                            DateCreated = DateTime.Now,
-                            HasChild = (bool)reader["HasChild"],
-                            FilterPath = targetData.FilterPath + "/" + targetData.Name + "/",
-                            Type = GetDefaultExtension(reader["MimeType"].ToString()),
-                            Id = reader["ItemID"].ToString()
-                        };
-                        files.Add(moveFiles);
-                    }
-                    reader.Close();
-                    foreach (var file in files) { file.FilterId = GetFilterId(file.Id); }
-                }
-                catch (Exception e) { throw e; }
-                finally { sqlConnection.Close(); }
-            }
-            moveResponse.Files = files;
-            return moveResponse;
         }
 
         // Converts the byte value to the appropriate size value

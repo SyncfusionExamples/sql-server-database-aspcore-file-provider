@@ -2,9 +2,15 @@
 
 ## [Unreleased]
 
+### SQL Database File Provider
+
+#### New Features
+
+- `#151112`, `#152443` - Support has been provided for access control.
+
 ## 18.1.42 (2020-04-01)
 
-### SQL Server File System Provider
+### SQL Database File Provider
 
 #### New Features
 
@@ -12,7 +18,7 @@
 
 ## 17.3.14 (2019-10-04)
 
-### SQL Server File System Provider
+### SQL Database File Provider
 
 #### Bug Fixes
 
@@ -22,8 +28,8 @@
 
 ## 17.2.28-beta (2019-06-27)
 
-### SQL Server File System Provider
+### SQL Database File Provider
 
 #### New Features
 
-- Added filesystem provider support for SQL server database.
+- Added file provider support for SQL server database.

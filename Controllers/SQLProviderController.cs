@@ -93,7 +93,7 @@ namespace EJ2APIServices.Controllers
         [Route("SQLGetImage")]
         public IActionResult SQLGetImage(FileManagerDirectoryContent args)
         {
-            return operation.GetImage(args.Path, args.Id, true, null, args.Data);
+            return operation.GetImage(args.Path, args.ParentID, args.Id, true, null, args.Data);
         }
     }
 
