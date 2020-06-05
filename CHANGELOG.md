@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-### SQL Database File Provider
+### SQL Server DataBase File Provider
 
 #### New Features
 
@@ -10,7 +10,7 @@
 
 ## 18.1.42 (2020-04-01)
 
-### SQL Database File Provider
+### SQL Server DataBase File Provider
 
 #### New Features
 
@@ -18,7 +18,7 @@
 
 ## 17.3.14 (2019-10-04)
 
-### SQL Database File Provider
+### SQL Server DataBase File Provider
 
 #### Bug Fixes
 
@@ -28,7 +28,7 @@
 
 ## 17.2.28-beta (2019-06-27)
 
-### SQL Database File Provider
+### SQL Server DataBase File Provider
 
 #### New Features
 
