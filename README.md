@@ -1,14 +1,14 @@
-# SQL database file system provider for Essential JS2 File Manager
+# SQL server database file provider for Essential JS2 File Manager
 
-This repository contains the SQL database file system provider in ASP.NET Core for the Essential JS 2 File Manager component.
+This repository contains the SQL server database file provider in ASP.NET Core for the Essential JS 2 File Manager component.
 
 ## Key Features
 
 The SQL FILESTREAM feature provides efficient storage, management, and streaming of unstructured data stored as files on the file system.
 
-SQL file system provider serves the file system support for the  FileManager component in SQL server database.
+The SQL server database file provider serves the file system support for the FileManager component in SQL server database.
 
-The following actions can be performed with SQL file system provider.
+The following actions can be performed with the SQL server database file provider.
 
 | **Actions** | **Description** |
 | --- | --- |
@@ -88,7 +88,7 @@ After successful compilation, run the following command to run the application.
 dotnet run
 ```
 
-Now, the project will be hosted in http://localhost. To ensure the SQL server database file provider system, map the following URL in your browser.
+Now, the project will be hosted in http://localhost. To ensure the SQL server database file provider, map the following URL in your browser.
 
 ```
 http://localhost:<port-number>/api/test
@@ -96,7 +96,7 @@ http://localhost:<port-number>/api/test
 
 ## File Manager AjaxSettings
 
-To access the basic actions such as Read, Delete, Copy, Move, Rename, Search, and Get Details of File Manager using SQL server file provider service, just map the following code snippet in the Ajaxsettings property of File Manager.
+To access the basic actions such as Read, Delete, Copy, Move, Rename, Search, and Get Details of File Manager using the SQL server database file provider service, just map the following code snippet in the Ajaxsettings property of File Manager.
 
 Here, the `hostUrl` will be your locally hosted port number.
 
@@ -164,4 +164,4 @@ Check the license detail [here](https://github.com/syncfusion/ej2-javascript-ui-
 
 Check the changelog [here](https://github.com/syncfusion/ej2-javascript-ui-controls/blob/master/controls/filemanager/CHANGELOG.md)
 
-Copyright 2019 Syncfusion, Inc. All Rights Reserved. The Syncfusion Essential Studio license and copyright applies to this distribution.
+Copyright 2020 Syncfusion, Inc. All Rights Reserved. The Syncfusion Essential Studio license and copyright applies to this distribution.
