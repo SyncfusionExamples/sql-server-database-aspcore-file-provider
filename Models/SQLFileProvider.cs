@@ -1122,6 +1122,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
             {
                 if (path == null) { path = string.Empty; };
                 var searchWord = searchString;
+                bool hasPermission = true;
                 FileManagerDirectoryContent searchData;
                 FileManagerDirectoryContent cwd = new FileManagerDirectoryContent();
                 cwd.Name = data[0].Name;
@@ -1134,7 +1135,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                 sqlConnection.Open();
                 cwd.FilterPath = GetFilterPath(data[0].Id);
                 sqlConnection.Close();
-                AccessPermission permission = GetPermission(cwd.Id, cwd.ParentID, cwd.Name, cwd.IsFile, path);
+                AccessPermission permission = GetPermission(data[0].Id, data[0].ParentID, cwd.Name, cwd.IsFile, path);
                 cwd.Permission = permission;
                 if (cwd.Permission != null && !cwd.Permission.Read)
                 {
@@ -1173,10 +1174,16 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                         if (searchData.Name != "Products") foundFiles.Add(searchData);
                     }
                     reader.Close();
-                    foreach (var file in foundFiles)
+
+                    for (int i = foundFiles.Count - 1; i >= 0; i--)
                     {
-                        file.FilterPath = GetFilterPath(file.Id);
-                        file.FilterId = GetFilterId(file.Id);
+                        foundFiles[i].FilterPath = GetFilterPath(foundFiles[i].Id);
+                        foundFiles[i].FilterId = GetFilterId(foundFiles[i].Id);
+                        hasPermission = parentsHavePermission(foundFiles[i]);
+                        if (!hasPermission)
+                        {
+                            foundFiles.Remove(foundFiles[i]);
+                        }
                     }
                 }
                 searchResponse.Files = (IEnumerable<FileManagerDirectoryContent>)foundFiles;
@@ -1192,6 +1199,25 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                 return searchResponse;
             }
             finally { sqlConnection.Close(); }
+        }
+        protected virtual bool parentsHavePermission(FileManagerDirectoryContent fileDetails)
+        {
+            String[] parentPath = fileDetails.FilterId.Split('/');
+            bool hasPermission = true;
+            for (int i = 0; i <= parentPath.Length - 3; i++)
+            {
+                AccessPermission pathPermission = GetPermission(fileDetails.ParentID, parentPath[i], fileDetails.Name, false, fileDetails.FilterId);
+                if (pathPermission == null)
+                {
+                    break;
+                }
+                else if (pathPermission != null && !pathPermission.Read)
+                {
+                    hasPermission = false;
+                    break;
+                }
+            }
+            return hasPermission;
         }
         // Copies the selected folder
         public void CopyFolderFiles(string[] fileId, string[] newTargetId, SqlConnection sqlConnection)
