@@ -1,6 +1,6 @@
 # SQL server database file provider for Essential JS2 File Manager
 
-This repository contains the SQL server database file provider in ASP.NET Core for the Essential JS 2 File Manager component.
+This repository contains the SQL server database file provider in ASP.NET Core for the Syncfusion File Manager component.
 
 ## Key Features
 
@@ -25,7 +25,7 @@ The following actions can be performed with the SQL server database file provide
 
 ## Prerequisites
 
-Make the SQL server connection with SQL database file ([App_Data/FileManager.mdf](https://github.com/SyncfusionExamples/ej2-sql-server-database-aspcore-file-provider/tree/master/App_Data)) and specify the connection string in "Web.config" file as specified in below code example.
+Make the SQL server connection with SQL database file ([App_Data/FileManager.mdf](https://github.com/SyncfusionExamples/sql-server-database-aspcore-file-provider/tree/master/App_Data)) and specify the connection string in "Web.config" file as specified in below code example.
 
 ```
 
@@ -33,7 +33,7 @@ Make the SQL server connection with SQL database file ([App_Data/FileManager.mdf
 
 ```
 
-Also need to add the entry for the connection string in the [`appsettings.json`](https://github.com/SyncfusionExamples/ej2-sql-server-database-aspcore-file-provider/blob/master/appsettings.json) file as specified in below code example.
+Also need to add the entry for the connection string in the [`appsettings.json`](https://github.com/SyncfusionExamples/sql-server-database-aspcore-file-provider/blob/master/appsettings.json) file as specified in below code example.
 
 ```
 
@@ -55,13 +55,13 @@ To configure the SQL server database connection use the `SetSQLConnection` metho
 
 ## How to run this application?
 
-To run this application, clone the [`ej2-sql-server-database-aspcore-file-provider `](https://github.com/SyncfusionExamples/ej2-sql-server-database-aspcore-file-provider ) repository and then navigate to its appropriate path where it has been located in your system.
+To run this application, clone the [`sql-server-database-aspcore-file-provider `](https://github.com/SyncfusionExamples/sql-server-database-aspcore-file-provider ) repository and then navigate to its appropriate path where it has been located in your system.
 
 To do so, open the command prompt and run the below commands one after the other.
 
 ```
 
-git clone https://github.com/SyncfusionExamples/ej2-sql-server-database-aspcore-file-provider   FileManagerSQLService
+git clone https://github.com/SyncfusionExamples/sql-server-database-aspcore-file-provider   FileManagerSQLService
 cd FileManagerSQLService
 
 ```
