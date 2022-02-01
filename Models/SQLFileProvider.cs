@@ -145,7 +145,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                         files.Add(childFiles);
                     }
                     reader.Close();
-
+                    cwd.FilterId = GetFilterId(cwd.Id);
                     foreach (var file in files)
                     {
                         file.FilterId = GetFilterId(file.Id);
@@ -806,6 +806,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                                 Id = reader["ItemID"].ToString()
                             };
                         }
+                        reader.Close();
                     }
                     catch (SqlException ex) { Console.WriteLine(ex.ToString()); }
                     finally { sqlConnection.Close(); }
@@ -1123,16 +1124,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                 if (path == null) { path = string.Empty; };
                 var searchWord = searchString;
                 FileManagerDirectoryContent searchData;
-                FileManagerDirectoryContent cwd = new FileManagerDirectoryContent();
-                cwd.Name = data[0].Name;
-                cwd.Size = data[0].Size;
-                cwd.IsFile = false;
-                cwd.DateModified = data[0].DateModified;
-                cwd.DateCreated = data[0].DateCreated;
-                cwd.HasChild = data[0].HasChild;
-                cwd.Type = data[0].Type;
-                sqlConnection.Open();
-                cwd.FilterPath = GetFilterPath(data[0].Id);
+                FileManagerDirectoryContent cwd = data[0];
                 sqlConnection.Close();
                 AccessPermission permission = GetPermission(cwd.Id, cwd.ParentID, cwd.Name, cwd.IsFile, path);
                 cwd.Permission = permission;
@@ -1263,7 +1255,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                         lastId = GetLastInsertedValue();
                         sqlConnection.Close();
                         sqlConnection.Open();
-                        SqlDataReader reader = (new SqlCommand(("Select * from " + this.tableName + " where ItemID=" + item.Id), sqlConnection)).ExecuteReader();
+                        SqlDataReader reader = (new SqlCommand(("Select * from " + this.tableName + " where ItemID=" + lastId), sqlConnection)).ExecuteReader();
                         while (reader.Read())
                         {
                             var copyFiles = new FileManagerDirectoryContent
