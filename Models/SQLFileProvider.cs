@@ -145,7 +145,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                         files.Add(childFiles);
                     }
                     reader.Close();
-
+                    cwd.FilterId = GetFilterId(cwd.Id);
                     foreach (var file in files)
                     {
                         file.FilterId = GetFilterId(file.Id);
@@ -806,6 +806,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                                 Id = reader["ItemID"].ToString()
                             };
                         }
+                        reader.Close();
                     }
                     catch (SqlException ex) { Console.WriteLine(ex.ToString()); }
                     finally { sqlConnection.Close(); }
@@ -1122,19 +1123,11 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
             {
                 if (path == null) { path = string.Empty; };
                 var searchWord = searchString;
+                bool hasPermission = true;
                 FileManagerDirectoryContent searchData;
-                FileManagerDirectoryContent cwd = new FileManagerDirectoryContent();
-                cwd.Name = data[0].Name;
-                cwd.Size = data[0].Size;
-                cwd.IsFile = false;
-                cwd.DateModified = data[0].DateModified;
-                cwd.DateCreated = data[0].DateCreated;
-                cwd.HasChild = data[0].HasChild;
-                cwd.Type = data[0].Type;
-                sqlConnection.Open();
-                cwd.FilterPath = GetFilterPath(data[0].Id);
+                FileManagerDirectoryContent cwd = data[0];
                 sqlConnection.Close();
-                AccessPermission permission = GetPermission(cwd.Id, cwd.ParentID, cwd.Name, cwd.IsFile, path);
+                AccessPermission permission = GetPermission(data[0].Id, data[0].ParentID, cwd.Name, cwd.IsFile, path);
                 cwd.Permission = permission;
                 if (cwd.Permission != null && !cwd.Permission.Read)
                 {
@@ -1173,10 +1166,15 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                         if (searchData.Name != "Products") foundFiles.Add(searchData);
                     }
                     reader.Close();
-                    foreach (var file in foundFiles)
+                    for (int i = foundFiles.Count - 1; i >= 0; i--)
                     {
-                        file.FilterPath = GetFilterPath(file.Id);
-                        file.FilterId = GetFilterId(file.Id);
+                        foundFiles[i].FilterPath = GetFilterPath(foundFiles[i].Id);
+                        foundFiles[i].FilterId = GetFilterId(foundFiles[i].Id);
+                        hasPermission = parentsHavePermission(foundFiles[i]);
+                        if (!hasPermission)
+                        {
+                            foundFiles.Remove(foundFiles[i]);
+                        }
                     }
                 }
                 searchResponse.Files = (IEnumerable<FileManagerDirectoryContent>)foundFiles;
@@ -1193,8 +1191,28 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
             }
             finally { sqlConnection.Close(); }
         }
-        // Copies the selected folder
-        public void CopyFolderFiles(string[] fileId, string[] newTargetId, SqlConnection sqlConnection)
+        protected virtual bool parentsHavePermission(FileManagerDirectoryContent fileDetails)
+        {
+            String[] parentPath = fileDetails.FilterId.Split('/');
+            bool hasPermission = true;
+            for (int i = 0; i <= parentPath.Length - 3; i++)
+            {
+                AccessPermission pathPermission = GetPermission(fileDetails.ParentID, parentPath[i], fileDetails.Name, false, fileDetails.FilterId);
+                if (pathPermission == null)
+                {
+                    break;
+                }
+                else if (pathPermission != null && !pathPermission.Read)
+                {
+                    hasPermission = false;
+                    break;
+                }
+            }
+            return hasPermission;
+        }
+
+            // Copies the selected folder
+            public void CopyFolderFiles(string[] fileId, string[] newTargetId, SqlConnection sqlConnection)
         {
             List<string> fromFoldersId = new List<string>();
             List<string> toFoldersId = new List<string>();
@@ -1263,7 +1281,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                         lastId = GetLastInsertedValue();
                         sqlConnection.Close();
                         sqlConnection.Open();
-                        SqlDataReader reader = (new SqlCommand(("Select * from " + this.tableName + " where ItemID=" + item.Id), sqlConnection)).ExecuteReader();
+                        SqlDataReader reader = (new SqlCommand(("Select * from " + this.tableName + " where ItemID=" + lastId), sqlConnection)).ExecuteReader();
                         while (reader.Read())
                         {
                             var copyFiles = new FileManagerDirectoryContent
