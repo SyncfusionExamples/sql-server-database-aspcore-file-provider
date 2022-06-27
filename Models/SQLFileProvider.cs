@@ -533,46 +533,53 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
             }
         }
 
-        public void DownloadFolder(ZipArchive archive, string folderName, SqlConnection sqlConnection)
+        public void DownloadFolder(ZipArchive archive, string subFolderName, SqlConnection sqlConnection)
         {
-            ZipArchiveEntry zipEntry;
-            byte[] fileContent = null;
-            string parentID = "";
-            string fileName = "";
-            bool isFile = false;
-            zipEntry = archive.CreateEntry(this.folderEntryName + "/");
-            SqlDataReader readCommmandReader = (new SqlCommand("select * from " + tableName + " where Name ='" + folderName + "'", sqlConnection)).ExecuteReader();
-            while (readCommmandReader.Read()) { parentID = readCommmandReader["ItemID"].ToString().Trim(); }
-            readCommmandReader.Close();
-            SqlDataReader downloadReadCommandReader = (new SqlCommand("select * from " + tableName + " where ParentID ='" + parentID + "'", sqlConnection)).ExecuteReader();
-            while (downloadReadCommandReader.Read())
+            LinkedList<string> subFolders = new LinkedList<string>();
+            subFolders.AddLast(subFolderName);
+
+            LinkedList<string> folderPath = new LinkedList<string>();
+            folderPath.AddLast(subFolderName);
+
+            while (subFolders.Any())
             {
-                fileName = downloadReadCommandReader["Name"].ToString().Trim();
-                isFile = (bool)downloadReadCommandReader["IsFile"];
-                if (isFile) fileContent = (byte[])downloadReadCommandReader["Content"];
-                if (isFile)
+                subFolderName = subFolders.First();
+                subFolders.RemoveFirst();
+                string folderName = folderPath.First();
+                folderPath.RemoveFirst();
+                ZipArchiveEntry zipEntry;
+                byte[] fileContent = null;
+                string parentID = "";
+                string fileName = "";
+                bool isFile = false;
+                zipEntry = archive.CreateEntry(folderName + "/");
+                SqlDataReader readCommmandReader = (new SqlCommand("select * from " + tableName + " where Name ='" + subFolderName + "'", sqlConnection)).ExecuteReader();
+                while (readCommmandReader.Read()) { parentID = readCommmandReader["ItemID"].ToString().Trim(); }
+                readCommmandReader.Close();
+                SqlDataReader downloadReadCommandReader = (new SqlCommand("select * from " + tableName + " where ParentID ='" + parentID + "'", sqlConnection)).ExecuteReader();
+                while (downloadReadCommandReader.Read())
                 {
-                    if (System.IO.File.Exists(Path.Combine(Path.GetTempPath(), fileName)))
-                        System.IO.File.Delete(Path.Combine(Path.GetTempPath(), fileName));
-                    using (var file = System.IO.File.OpenWrite(Path.Combine(Path.GetTempPath(), fileName)))
+                    fileName = downloadReadCommandReader["Name"].ToString().Trim();
+                    isFile = (bool)downloadReadCommandReader["IsFile"];
+                    if (isFile) fileContent = (byte[])downloadReadCommandReader["Content"];
+                    if (isFile)
                     {
-                        file.Write(fileContent, 0, fileContent.Length);
-                        file.Close();
-                        zipEntry = archive.CreateEntryFromFile(Path.Combine(Path.GetTempPath(), fileName), this.folderEntryName + "\\" + fileName, CompressionLevel.Fastest);
+                        if (System.IO.File.Exists(Path.Combine(Path.GetTempPath(), fileName)))
+                            System.IO.File.Delete(Path.Combine(Path.GetTempPath(), fileName));
+                        using (var file = System.IO.File.OpenWrite(Path.Combine(Path.GetTempPath(), fileName)))
+                        {
+                            file.Write(fileContent, 0, fileContent.Length);
+                            file.Close();
+                            zipEntry = archive.CreateEntryFromFile(Path.Combine(Path.GetTempPath(), fileName), folderName + "\\" + fileName, CompressionLevel.Fastest);
+                        }
+                        if (System.IO.File.Exists(Path.Combine(Path.GetTempPath(), fileName)))
+                            System.IO.File.Delete(Path.Combine(Path.GetTempPath(), fileName));
                     }
-                    if (System.IO.File.Exists(Path.Combine(Path.GetTempPath(), fileName)))
-                        System.IO.File.Delete(Path.Combine(Path.GetTempPath(), fileName));
+                    else { folderPath.AddLast(folderName + "/" + fileName); subFolders.AddLast(fileName); }
                 }
-                else this.folder.Add(fileName);
+                downloadReadCommandReader.Close();
             }
-            downloadReadCommandReader.Close();
-            string[] folders = this.folder != null ? this.folder.ToArray() : new string[] { };
-            this.folder = new List<string>();
-            for (var i = 0; i < folders.Length; i++)
-            {
-                this.previousEntryName = this.folderEntryName = (this.initEntry == folderName ? folderName : this.previousEntryName) + "/" + folders[i];
-                DownloadFolder(archive, folders[i], sqlConnection);
-            }
+
         }
         // Calculates the folder size
         public long GetFolderSize(string[] idValue)
