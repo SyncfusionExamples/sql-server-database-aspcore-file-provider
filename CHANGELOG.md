@@ -16,14 +16,6 @@
 
 - `#151112`, `#152443` - Support has been provided for access control.
 
-## 18.1.42 (2020-04-01)
-
-### SQL Server DataBase File Provider
-
-#### Bug Fixes
-
-- `#281523` - The issue with "Access control is not properly working in search operation" has been fixed.
-
 ## 18.2.44 (2020-07-06)
 
 ### SQL Server DataBase File Provider
