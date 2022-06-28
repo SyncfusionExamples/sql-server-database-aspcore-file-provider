@@ -8,6 +8,8 @@
 
 - `#174483` - The issue with "Folders order is improper while downloading the root folder from the Navigation pane" has been fixed.
 
+- `#281523` - The issue with "Access control is not properly working in search operation" has been fixed.
+
 ### SQL Server DataBase File Provider
 
 #### New Features
