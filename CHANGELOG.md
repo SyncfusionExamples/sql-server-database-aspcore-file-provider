@@ -4,6 +4,12 @@
 
 ### SQL Server DataBase File Provider
 
+#### Bug Fixes
+
+- `#174483` - The issue with "Folders order is improper while downloading the root folder from the Navigation pane" has been fixed.
+
+### SQL Server DataBase File Provider
+
 #### New Features
 
 - `#151112`, `#152443` - Support has been provided for access control.
