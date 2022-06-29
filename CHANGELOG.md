@@ -4,11 +4,19 @@
 
 ### SQL Server DataBase File Provider
 
+#### Bug Fixes
+
+- `#174483` - The issue with "Folders order is improper while downloading the root folder from the Navigation pane" has been fixed.
+
+- `#281523` - The issue with "Access control is not properly working in search operation" has been fixed.
+
+### SQL Server DataBase File Provider
+
 #### New Features
 
 - `#151112`, `#152443` - Support has been provided for access control.
 
-## 18.1.42 (2020-04-01)
+## 18.2.44 (2020-07-06)
 
 ### SQL Server DataBase File Provider
 

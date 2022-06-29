@@ -145,7 +145,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                         files.Add(childFiles);
                     }
                     reader.Close();
-
+                    cwd.FilterId = GetFilterId(cwd.Id);
                     foreach (var file in files)
                     {
                         file.FilterId = GetFilterId(file.Id);
@@ -533,46 +533,53 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
             }
         }
 
-        public void DownloadFolder(ZipArchive archive, string folderName, SqlConnection sqlConnection)
+        public void DownloadFolder(ZipArchive archive, string subFolderName, SqlConnection sqlConnection)
         {
-            ZipArchiveEntry zipEntry;
-            byte[] fileContent = null;
-            string parentID = "";
-            string fileName = "";
-            bool isFile = false;
-            zipEntry = archive.CreateEntry(this.folderEntryName + "/");
-            SqlDataReader readCommmandReader = (new SqlCommand("select * from " + tableName + " where Name ='" + folderName + "'", sqlConnection)).ExecuteReader();
-            while (readCommmandReader.Read()) { parentID = readCommmandReader["ItemID"].ToString().Trim(); }
-            readCommmandReader.Close();
-            SqlDataReader downloadReadCommandReader = (new SqlCommand("select * from " + tableName + " where ParentID ='" + parentID + "'", sqlConnection)).ExecuteReader();
-            while (downloadReadCommandReader.Read())
+            LinkedList<string> subFolders = new LinkedList<string>();
+            subFolders.AddLast(subFolderName);
+
+            LinkedList<string> folderPath = new LinkedList<string>();
+            folderPath.AddLast(subFolderName);
+
+            while (subFolders.Any())
             {
-                fileName = downloadReadCommandReader["Name"].ToString().Trim();
-                isFile = (bool)downloadReadCommandReader["IsFile"];
-                if (isFile) fileContent = (byte[])downloadReadCommandReader["Content"];
-                if (isFile)
+                subFolderName = subFolders.First();
+                subFolders.RemoveFirst();
+                string folderName = folderPath.First();
+                folderPath.RemoveFirst();
+                ZipArchiveEntry zipEntry;
+                byte[] fileContent = null;
+                string parentID = "";
+                string fileName = "";
+                bool isFile = false;
+                zipEntry = archive.CreateEntry(folderName + "/");
+                SqlDataReader readCommmandReader = (new SqlCommand("select * from " + tableName + " where Name ='" + subFolderName + "'", sqlConnection)).ExecuteReader();
+                while (readCommmandReader.Read()) { parentID = readCommmandReader["ItemID"].ToString().Trim(); }
+                readCommmandReader.Close();
+                SqlDataReader downloadReadCommandReader = (new SqlCommand("select * from " + tableName + " where ParentID ='" + parentID + "'", sqlConnection)).ExecuteReader();
+                while (downloadReadCommandReader.Read())
                 {
-                    if (System.IO.File.Exists(Path.Combine(Path.GetTempPath(), fileName)))
-                        System.IO.File.Delete(Path.Combine(Path.GetTempPath(), fileName));
-                    using (var file = System.IO.File.OpenWrite(Path.Combine(Path.GetTempPath(), fileName)))
+                    fileName = downloadReadCommandReader["Name"].ToString().Trim();
+                    isFile = (bool)downloadReadCommandReader["IsFile"];
+                    if (isFile) fileContent = (byte[])downloadReadCommandReader["Content"];
+                    if (isFile)
                     {
-                        file.Write(fileContent, 0, fileContent.Length);
-                        file.Close();
-                        zipEntry = archive.CreateEntryFromFile(Path.Combine(Path.GetTempPath(), fileName), this.folderEntryName + "\\" + fileName, CompressionLevel.Fastest);
+                        if (System.IO.File.Exists(Path.Combine(Path.GetTempPath(), fileName)))
+                            System.IO.File.Delete(Path.Combine(Path.GetTempPath(), fileName));
+                        using (var file = System.IO.File.OpenWrite(Path.Combine(Path.GetTempPath(), fileName)))
+                        {
+                            file.Write(fileContent, 0, fileContent.Length);
+                            file.Close();
+                            zipEntry = archive.CreateEntryFromFile(Path.Combine(Path.GetTempPath(), fileName), folderName + "\\" + fileName, CompressionLevel.Fastest);
+                        }
+                        if (System.IO.File.Exists(Path.Combine(Path.GetTempPath(), fileName)))
+                            System.IO.File.Delete(Path.Combine(Path.GetTempPath(), fileName));
                     }
-                    if (System.IO.File.Exists(Path.Combine(Path.GetTempPath(), fileName)))
-                        System.IO.File.Delete(Path.Combine(Path.GetTempPath(), fileName));
+                    else { folderPath.AddLast(folderName + "/" + fileName); subFolders.AddLast(fileName); }
                 }
-                else this.folder.Add(fileName);
+                downloadReadCommandReader.Close();
             }
-            downloadReadCommandReader.Close();
-            string[] folders = this.folder != null ? this.folder.ToArray() : new string[] { };
-            this.folder = new List<string>();
-            for (var i = 0; i < folders.Length; i++)
-            {
-                this.previousEntryName = this.folderEntryName = (this.initEntry == folderName ? folderName : this.previousEntryName) + "/" + folders[i];
-                DownloadFolder(archive, folders[i], sqlConnection);
-            }
+
         }
         // Calculates the folder size
         public long GetFolderSize(string[] idValue)
@@ -806,6 +813,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                                 Id = reader["ItemID"].ToString()
                             };
                         }
+                        reader.Close();
                     }
                     catch (SqlException ex) { Console.WriteLine(ex.ToString()); }
                     finally { sqlConnection.Close(); }
@@ -1122,19 +1130,11 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
             {
                 if (path == null) { path = string.Empty; };
                 var searchWord = searchString;
+                bool hasPermission = true;
                 FileManagerDirectoryContent searchData;
-                FileManagerDirectoryContent cwd = new FileManagerDirectoryContent();
-                cwd.Name = data[0].Name;
-                cwd.Size = data[0].Size;
-                cwd.IsFile = false;
-                cwd.DateModified = data[0].DateModified;
-                cwd.DateCreated = data[0].DateCreated;
-                cwd.HasChild = data[0].HasChild;
-                cwd.Type = data[0].Type;
-                sqlConnection.Open();
-                cwd.FilterPath = GetFilterPath(data[0].Id);
+                FileManagerDirectoryContent cwd = data[0];
                 sqlConnection.Close();
-                AccessPermission permission = GetPermission(cwd.Id, cwd.ParentID, cwd.Name, cwd.IsFile, path);
+                AccessPermission permission = GetPermission(data[0].Id, data[0].ParentID, cwd.Name, cwd.IsFile, path);
                 cwd.Permission = permission;
                 if (cwd.Permission != null && !cwd.Permission.Read)
                 {
@@ -1173,10 +1173,15 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                         if (searchData.Name != "Products") foundFiles.Add(searchData);
                     }
                     reader.Close();
-                    foreach (var file in foundFiles)
+                    for (int i = foundFiles.Count - 1; i >= 0; i--)
                     {
-                        file.FilterPath = GetFilterPath(file.Id);
-                        file.FilterId = GetFilterId(file.Id);
+                        foundFiles[i].FilterPath = GetFilterPath(foundFiles[i].Id);
+                        foundFiles[i].FilterId = GetFilterId(foundFiles[i].Id);
+                        hasPermission = parentsHavePermission(foundFiles[i]);
+                        if (!hasPermission)
+                        {
+                            foundFiles.Remove(foundFiles[i]);
+                        }
                     }
                 }
                 searchResponse.Files = (IEnumerable<FileManagerDirectoryContent>)foundFiles;
@@ -1193,8 +1198,28 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
             }
             finally { sqlConnection.Close(); }
         }
-        // Copies the selected folder
-        public void CopyFolderFiles(string[] fileId, string[] newTargetId, SqlConnection sqlConnection)
+        protected virtual bool parentsHavePermission(FileManagerDirectoryContent fileDetails)
+        {
+            String[] parentPath = fileDetails.FilterId.Split('/');
+            bool hasPermission = true;
+            for (int i = 0; i <= parentPath.Length - 3; i++)
+            {
+                AccessPermission pathPermission = GetPermission(fileDetails.ParentID, parentPath[i], fileDetails.Name, false, fileDetails.FilterId);
+                if (pathPermission == null)
+                {
+                    break;
+                }
+                else if (pathPermission != null && !pathPermission.Read)
+                {
+                    hasPermission = false;
+                    break;
+                }
+            }
+            return hasPermission;
+        }
+
+            // Copies the selected folder
+            public void CopyFolderFiles(string[] fileId, string[] newTargetId, SqlConnection sqlConnection)
         {
             List<string> fromFoldersId = new List<string>();
             List<string> toFoldersId = new List<string>();
@@ -1263,7 +1288,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                         lastId = GetLastInsertedValue();
                         sqlConnection.Close();
                         sqlConnection.Open();
-                        SqlDataReader reader = (new SqlCommand(("Select * from " + this.tableName + " where ItemID=" + item.Id), sqlConnection)).ExecuteReader();
+                        SqlDataReader reader = (new SqlCommand(("Select * from " + this.tableName + " where ItemID=" + lastId), sqlConnection)).ExecuteReader();
                         while (reader.Read())
                         {
                             var copyFiles = new FileManagerDirectoryContent
