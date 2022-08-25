@@ -884,6 +884,8 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                     {
                         string fileName = Path.GetFileName(file.FileName);
                         string absoluteFilePath = Path.Combine(Path.GetTempPath(), fileName);
+                        string[] folders = path.Split('/');
+                        string folderId = folders[folders.Length - 2];
                         string contentType = file.ContentType;
                         if (action == "save")
                         {
@@ -899,7 +901,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                                     BinaryReader binaryReader = new BinaryReader(fsSource);
                                     long numBytes = new FileInfo(absoluteFilePath).Length;
                                     byte[] bytes = binaryReader.ReadBytes((int)numBytes);
-                                    UploadQuery(fileName, contentType, bytes, data[0].Id);
+                                    UploadQuery(fileName, contentType, bytes, folderId);
                                 }
                             }
                             else
@@ -1438,6 +1440,16 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                 return (Math.Sign(fileSize) * Math.Round(Math.Abs(fileSize) / Math.Pow(1024, loc), 1)).ToString() + " " + index[loc];
             }
             catch (Exception e) { throw e; }
+        }
+
+        public bool IsFolderExist(string parentId, string name)
+        {
+            sqlConnection = setSQLDBConnection();
+            sqlConnection.Open();
+            SqlCommand Checkcommand = new SqlCommand("select COUNT(Name) from " + this.tableName + " where ParentID='" + parentId + "' AND MimeType= 'folder' AND Name = '" + name.Trim() + "'", sqlConnection);
+            int count = (int)Checkcommand.ExecuteScalar();
+            sqlConnection.Close();
+            return count != 0 ? true : false;
         }
 
         public string ToCamelCase(FileManagerResponse userData)

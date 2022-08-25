@@ -69,6 +69,31 @@ namespace EJ2APIServices.Controllers
             FileManagerResponse uploadResponse;
             FileManagerDirectoryContent[] dataObject = new FileManagerDirectoryContent[1];
             dataObject[0] = JsonConvert.DeserializeObject<FileManagerDirectoryContent>(data);
+            FileManagerResponse createResponse = new FileManagerResponse();
+            foreach (var file in uploadFiles)
+            {
+                var folders = (file.FileName).Split('/');
+                // checking the folder upload
+                if (folders.Length > 1)
+                {
+                    string[] folderList = path.Split('/');
+                    string parentId = folderList[folderList.Length - 2];
+                    for (var i = 0; i < folders.Length - 1; i++)
+                    {
+                        if (!this.operation.IsFolderExist(parentId, folders[i]))
+                        {
+                            createResponse = this.operation.Create(path, folders[i], dataObject);
+                        }
+                        if (createResponse.Error == null && createResponse.Files != null)
+                        {
+                            foreach (FileManagerDirectoryContent newData in createResponse.Files)
+                            {
+                                path += newData.Id + "/";
+                            }
+                        }
+                    }
+                }
+            }
             uploadResponse = operation.Upload(path, uploadFiles, action, dataObject);
             if (uploadResponse.Error != null)
             {
