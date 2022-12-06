@@ -11,7 +11,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Win32;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
-using System.Runtime.InteropServices.WindowsRuntime;
 
 
 namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
