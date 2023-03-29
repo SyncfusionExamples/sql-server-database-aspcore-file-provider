@@ -31,7 +31,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
         private string previousEntryName = "";
         AccessDetails AccessDetails = new AccessDetails();
         private string accessMessage = string.Empty;
-
+        internal HttpResponse Response;
         // Sets the configuration
         public SQLFileProvider(IConfiguration configuration) { this.configuration = configuration; }
         // Initializes the SqlConnection
@@ -764,6 +764,10 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
             string ParentID = "";
             try
             {
+                if (Response.HttpContext.Request.Host.Value == "ej2.syncfusion.com")
+                {
+                    throw new UnauthorizedAccessException("File Manager's delete functionality is restricted in the online demo. If you need to test delete functionality, please install Syncfusion Essential Studio on your machine and run the demo");
+                }
                 FileManagerDirectoryContent deletedData = new FileManagerDirectoryContent();
                 List<FileManagerDirectoryContent> newData = new List<FileManagerDirectoryContent>();
                 sqlConnection = setSQLDBConnection();
@@ -857,7 +861,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
             {
                 ErrorDetails error = new ErrorDetails();
                 error.Message = e.Message.ToString();
-                error.Code = error.Message.Contains("is not accessible. You need permission") ? "401" : "417";
+                error.Code = error.Message.Contains("is not accessible. You need permission") || error.Message.Contains("Syncfusion Essential Studio") ? "401" : "417";
                 if ((error.Code == "401") && !string.IsNullOrEmpty(accessMessage)) { error.Message = accessMessage; }
                 remvoeResponse.Error = error;
                 return remvoeResponse;

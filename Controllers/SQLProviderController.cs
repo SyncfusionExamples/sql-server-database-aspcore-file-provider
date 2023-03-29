@@ -63,6 +63,7 @@ namespace EJ2APIServices.Controllers
                     return operation.ToCamelCase(operation.GetFiles(args.Path, false, args.Data));
                 case "delete":
                     // Deletes the selected file(s) or folder(s) from the given path.
+                    operation.Response = Response;
                     return operation.ToCamelCase(operation.Delete(args.Path, args.Names, args.Data));
                 case "details":
                     // Gets the details of the selected file(s) or folder(s).
