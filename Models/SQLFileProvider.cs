@@ -883,12 +883,10 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                     {
                         string fileName = Path.GetFileName(file.FileName);
                         string absoluteFilePath = Path.Combine(Path.GetTempPath(), fileName);
-                        string[] folders = path.Split('/');
-                        string folderId = folders[folders.Length - 2];
                         string contentType = file.ContentType;
                         if (action == "save")
                         {
-                            if (!IsItemExist(folderId, fileName, true))
+                            if (!IsFileExist(data[0].Id, fileName))
                             {
                                 using (FileStream fsSource = new FileStream(absoluteFilePath, FileMode.Create))
                                 {
@@ -900,7 +898,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                                     BinaryReader binaryReader = new BinaryReader(fsSource);
                                     long numBytes = new FileInfo(absoluteFilePath).Length;
                                     byte[] bytes = binaryReader.ReadBytes((int)numBytes);
-                                    UploadQuery(fileName, contentType, bytes, folderId);
+                                    UploadQuery(fileName, contentType, bytes, data[0].Id);
                                 }
                             }
                             else
@@ -1442,17 +1440,16 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
         }
 
         /// <summary>
-        /// Checks whether a file or folder with the specified name exists within the specified parent folder.
+        /// Checks whether a file with the specified name exists within the specified parent folder.
         /// </summary>
         /// <param name="parentId">The ID of the parent folder to search within.</param>
-        /// <param name="name">The name of the file or folder to search for.</param>
-        /// <param name="isFile">Indicates whether to search for a file (true) or a folder (false).</param>
+        /// <param name="name">The name of the file to search for.</param>
         /// <returns>True if an item with the specified name exists within the specified parent folder, false otherwise.</returns>
-        public bool IsItemExist(string parentId, string name, bool isFile)
+        public bool IsFileExist(string parentId, string name)
         {
             sqlConnection = setSQLDBConnection();
             sqlConnection.Open();
-            SqlCommand Checkcommand = new SqlCommand("select COUNT(Name) from " + this.tableName + " where ParentID='" + parentId + "' AND " + (isFile ? "IsFile = 'true'" : "MimeType= 'folder'") + " AND Name = '" + name.Trim() + "'", sqlConnection);
+            SqlCommand Checkcommand = new SqlCommand("select COUNT(Name) from " + this.tableName + " where ParentID='" + parentId + "' AND IsFile = 'true' AND Name = '" + name.Trim() + "'", sqlConnection);
             int count = (int)Checkcommand.ExecuteScalar();
             sqlConnection.Close();
             return count != 0;
