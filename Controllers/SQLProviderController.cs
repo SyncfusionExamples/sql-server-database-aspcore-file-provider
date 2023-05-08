@@ -104,7 +104,7 @@ namespace EJ2APIServices.Controllers
                     string parentId = folderList[folderList.Length - 2];
                     for (var i = 0; i < folders.Length - 1; i++)
                     {
-                        if (!this.operation.IsFolderExist(parentId, folders[i]))
+                        if (!this.operation.IsItemExist(parentId, folders[i], false))
                         {
                             createResponse = this.operation.Create(path, folders[i], dataObject);
                         }

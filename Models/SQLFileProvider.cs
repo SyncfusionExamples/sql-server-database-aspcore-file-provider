@@ -888,7 +888,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                         string contentType = file.ContentType;
                         if (action == "save")
                         {
-                            if (!System.IO.File.Exists(absoluteFilePath))
+                            if (!IsItemExist(folderId, fileName, true))
                             {
                                 using (FileStream fsSource = new FileStream(absoluteFilePath, FileMode.Create))
                                 {
@@ -1441,14 +1441,21 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
             catch (Exception e) { throw e; }
         }
 
-        public bool IsFolderExist(string parentId, string name)
+        /// <summary>
+        /// Checks whether a file or folder with the specified name exists within the specified parent folder.
+        /// </summary>
+        /// <param name="parentId">The ID of the parent folder to search within.</param>
+        /// <param name="name">The name of the file or folder to search for.</param>
+        /// <param name="isFile">Indicates whether to search for a file (true) or a folder (false).</param>
+        /// <returns>True if an item with the specified name exists within the specified parent folder, false otherwise.</returns>
+        public bool IsItemExist(string parentId, string name, bool isFile)
         {
             sqlConnection = setSQLDBConnection();
             sqlConnection.Open();
-            SqlCommand Checkcommand = new SqlCommand("select COUNT(Name) from " + this.tableName + " where ParentID='" + parentId + "' AND MimeType= 'folder' AND Name = '" + name.Trim() + "'", sqlConnection);
+            SqlCommand Checkcommand = new SqlCommand("select COUNT(Name) from " + this.tableName + " where ParentID='" + parentId + "' AND " + (isFile ? "IsFile = 'true'" : "MimeType= 'folder'") + " AND Name = '" + name.Trim() + "'", sqlConnection);
             int count = (int)Checkcommand.ExecuteScalar();
             sqlConnection.Close();
-            return count != 0 ? true : false;
+            return count != 0;
         }
 
         public string ToCamelCase(FileManagerResponse userData)
