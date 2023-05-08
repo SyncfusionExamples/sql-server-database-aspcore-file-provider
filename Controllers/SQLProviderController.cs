@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
@@ -20,7 +21,30 @@ namespace EJ2APIServices.Controllers
         public SQLProviderController(IConfiguration configuration)
         {
             operation = new SQLFileProvider(configuration);
-            operation.SetSQLConnection("FileManagerConnection", "Product", "0");
+            string connectionName = "FileManagerConnection";
+            string tableName = "Product";
+            string rootFolderID = "0";
+
+            // Validate connection name
+            if (!Regex.IsMatch(connectionName, "^[a-zA-Z0-9_]*$"))
+            {
+                throw new ArgumentException("Invalid connection name");
+            }
+
+            // Validate table name
+            if (!Regex.IsMatch(tableName, "^[a-zA-Z0-9_]*$"))
+            {
+                throw new ArgumentException("Invalid table name");
+            }
+
+            // Validate root folder ID
+            if (!Regex.IsMatch(rootFolderID, "^[0-9]*$"))
+            {
+                throw new ArgumentException("Invalid root folder ID");
+            }
+
+            //To configure the database connection, set the connection name, table name and root folder ID value by passing these values to the SetSQLConnection method.
+            operation.SetSQLConnection(connectionName, tableName, rootFolderID);
         }
         [Route("SQLFileOperations")]
         public object SQLFileOperations([FromBody] FileManagerDirectoryContent args)
