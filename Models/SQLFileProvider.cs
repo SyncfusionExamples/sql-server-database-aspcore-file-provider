@@ -1444,7 +1444,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
         /// </summary>
         /// <param name="parentId">The ID of the parent folder to search within.</param>
         /// <param name="name">The name of the file to search for.</param>
-        /// <returns>True if an item with the specified name exists within the specified parent folder, false otherwise.</returns>
+        /// <returns>'True' if an item with the specified name exists within the specified parent folder, otherwise 'false'.</returns>
         public bool IsFileExist(string parentId, string name)
         {
             sqlConnection = setSQLDBConnection();
