@@ -886,7 +886,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                         string contentType = file.ContentType;
                         if (action == "save")
                         {
-                            if (!System.IO.File.Exists(absoluteFilePath))
+                            if (!IsFileExist(data[0].Id, fileName))
                             {
                                 using (FileStream fsSource = new FileStream(absoluteFilePath, FileMode.Create))
                                 {
@@ -1437,6 +1437,22 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                 return (Math.Sign(fileSize) * Math.Round(Math.Abs(fileSize) / Math.Pow(1024, loc), 1)).ToString() + " " + index[loc];
             }
             catch (Exception e) { throw e; }
+        }
+
+        /// <summary>
+        /// Checks whether a file with the specified name exists within the specified parent folder.
+        /// </summary>
+        /// <param name="parentId">The ID of the parent folder to search within.</param>
+        /// <param name="name">The name of the file to search for.</param>
+        /// <returns>'True' if an item with the specified name exists within the specified parent folder, otherwise 'false'.</returns>
+        public bool IsFileExist(string parentId, string name)
+        {
+            sqlConnection = setSQLDBConnection();
+            sqlConnection.Open();
+            SqlCommand Checkcommand = new SqlCommand("select COUNT(Name) from " + this.tableName + " where ParentID='" + parentId + "' AND IsFile = 'true' AND Name = '" + name.Trim() + "'", sqlConnection);
+            int count = (int)Checkcommand.ExecuteScalar();
+            sqlConnection.Close();
+            return count != 0;
         }
 
         public string ToCamelCase(FileManagerResponse userData)
