@@ -670,7 +670,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                             detailFiles.Permission = permission;
                         }
                         reader.Close();
-                        detailFiles.Location = (rootDirectory + GetFilterPath(detailsID) + detailFiles.Name).Replace("/", @"\");
+                        detailFiles.Location = (rootDirectory != detailFiles.Name) ? (rootDirectory + GetFilterPath(detailsID) + detailFiles.Name).Replace("/", @"\") : rootDirectory;
                     }
                     else
                     {
