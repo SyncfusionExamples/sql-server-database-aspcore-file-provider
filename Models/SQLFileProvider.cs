@@ -70,8 +70,12 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                     parentID = this.rootId;
                     try
                     {
-                        SqlDataReader reader = (new SqlCommand(("select ItemID from " + this.tableName + " where ParentID='" + rootId + "'"), sqlConnection)).ExecuteReader();
-                        while (reader.Read()) { isRoot = reader["ItemID"].ToString(); }
+                        using (SqlCommand command = new SqlCommand("select ItemID from " + this.tableName + " where ParentID=@ParentID", sqlConnection))
+                        {
+                            command.Parameters.AddWithValue("@ParentID", rootId);
+                            SqlDataReader reader = command.ExecuteReader();
+                            while (reader.Read()) { isRoot = reader["ItemID"].ToString(); }
+                        }
                     }
                     catch (SqlException ex) { Console.WriteLine(ex.ToString()); }
                     finally { sqlConnection.Close(); }
@@ -80,8 +84,12 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                 {
                     try
                     {
-                        SqlDataReader reader = (new SqlCommand(("select ParentID from " + this.tableName + " where ItemID='" + data[0].Id + "'"), sqlConnection)).ExecuteReader();
-                        while (reader.Read()) { parentID = reader["ParentID"].ToString(); }
+                        using (SqlCommand command = new SqlCommand("select ParentID from " + this.tableName + " where ItemID=@ItemID", sqlConnection))
+                        {
+                            command.Parameters.AddWithValue("@ItemID", data[0].Id);
+                            SqlDataReader reader = command.ExecuteReader();
+                            while (reader.Read()) { parentID = reader["ParentID"].ToString(); }
+                        }
                     }
                     catch (SqlException ex) { Console.WriteLine(ex.ToString()); }
                     finally { sqlConnection.Close(); }
@@ -96,24 +104,35 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                     try
                     {
                         sqlConnection.Open();
-                        SqlDataReader reader = (new SqlCommand(("select * from " + this.tableName + ((data.Length == 0) ? (" where ParentID='" + parentID) : " where ItemID='" + data[0].Id) + "'"), sqlConnection)).ExecuteReader();
-                        while (reader.Read())
+                        using (SqlCommand command = new SqlCommand("select * from " + this.tableName + " where " + ((data.Length == 0) ? "ParentID=@ParentID" : "ItemID=@ItemID"), sqlConnection))
                         {
-                            cwd = new FileManagerDirectoryContent
+                            if (data.Length == 0)
                             {
-                                Name = reader["Name"].ToString().Trim(),
-                                Size = (long)reader["Size"],
-                                IsFile = (bool)reader["IsFile"],
-                                FilterPath = data.Length > 0 ? data[0].FilterPath : "",
-                                DateModified = (DateTime)reader["DateModified"],
-                                DateCreated = (DateTime)reader["DateCreated"],
-                                Type = GetDefaultExtension(reader["MimeType"].ToString()),
-                                Id = reader["ItemID"].ToString(),
-                                HasChild = (bool)reader["HasChild"],
-                                ParentID = reader["ParentID"].ToString(),
-                            };
-                            AccessPermission permission = GetPermission(cwd.Id, cwd.ParentID, cwd.Name, cwd.IsFile, path);
-                            cwd.Permission = permission;
+                                command.Parameters.AddWithValue("@ParentID", parentID);
+                            }
+                            else
+                            {
+                                command.Parameters.AddWithValue("@ItemID", data[0].Id);
+                            }
+                            SqlDataReader reader = command.ExecuteReader();
+                            while (reader.Read())
+                            {
+                                cwd = new FileManagerDirectoryContent
+                                {
+                                    Name = reader["Name"].ToString().Trim(),
+                                    Size = (long)reader["Size"],
+                                    IsFile = (bool)reader["IsFile"],
+                                    FilterPath = data.Length > 0 ? data[0].FilterPath : "",
+                                    DateModified = (DateTime)reader["DateModified"],
+                                    DateCreated = (DateTime)reader["DateCreated"],
+                                    Type = GetDefaultExtension(reader["MimeType"].ToString()),
+                                    Id = reader["ItemID"].ToString(),
+                                    HasChild = (bool)reader["HasChild"],
+                                    ParentID = reader["ParentID"].ToString(),
+                                };
+                                AccessPermission permission = GetPermission(cwd.Id, cwd.ParentID, cwd.Name, cwd.IsFile, path);
+                                cwd.Permission = permission;
+                            }
                         }
                     }
                     catch (SqlException ex) { Console.WriteLine(ex.ToString()); }
@@ -123,34 +142,37 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                 try
                 {
                     sqlConnection.Open();
-                    SqlDataReader reader = (new SqlCommand(("select * from " + this.tableName + " where ParentID = '" + ((path == "/") ? isRoot : data[0].Id) + "'"), sqlConnection)).ExecuteReader();
-                    while (reader.Read())
+                    using (SqlCommand command = new SqlCommand("select * from " + this.tableName + " where ParentID = @ParentID", sqlConnection))
                     {
-                        var childFiles = new FileManagerDirectoryContent
+                        command.Parameters.AddWithValue("@ParentID", (path == "/") ? isRoot : data[0].Id);
+                        SqlDataReader reader = command.ExecuteReader();
+                        while (reader.Read())
                         {
-                            Name = reader["Name"].ToString().Trim(),
-                            Size = (long)reader["Size"],
-                            IsFile = (bool)reader["IsFile"],
-                            DateModified = (DateTime)reader["DateModified"],
-                            DateCreated = (DateTime)reader["DateCreated"],
-                            HasChild = (bool)reader["HasChild"],
-                            Type = GetDefaultExtension(reader["MimeType"].ToString()),
-                            Id = reader["ItemID"].ToString(),
-                            ParentID = reader["ParentID"].ToString(),
-                        };
+                            var childFiles = new FileManagerDirectoryContent
+                            {
+                                Name = reader["Name"].ToString().Trim(),
+                                Size = (long)reader["Size"],
+                                IsFile = (bool)reader["IsFile"],
+                                DateModified = (DateTime)reader["DateModified"],
+                                DateCreated = (DateTime)reader["DateCreated"],
+                                HasChild = (bool)reader["HasChild"],
+                                Type = GetDefaultExtension(reader["MimeType"].ToString()),
+                                Id = reader["ItemID"].ToString(),
+                                ParentID = reader["ParentID"].ToString(),
+                            };
 
-                        AccessPermission permission = GetPermission(childFiles.Id, childFiles.ParentID, childFiles.Name, childFiles.IsFile, path);
-                        childFiles.Permission = permission;
-                        files.Add(childFiles);
+                            AccessPermission permission = GetPermission(childFiles.Id, childFiles.ParentID, childFiles.Name, childFiles.IsFile, path);
+                            childFiles.Permission = permission;
+                            files.Add(childFiles);
+                        }
+                        reader.Close();
+                        cwd.FilterId = GetFilterId(cwd.Id);
+                        foreach (var file in files)
+                        {
+                            file.FilterId = GetFilterId(file.Id);
+                            file.FilterPath = data.Length != 0 ? GetFilterPath(file.Id) : "/";
+                        }
                     }
-                    reader.Close();
-                    cwd.FilterId = GetFilterId(cwd.Id);
-                    foreach (var file in files)
-                    {
-                        file.FilterId = GetFilterId(file.Id);
-                        file.FilterPath = data.Length != 0 ? GetFilterPath(file.Id) : "/";
-                    }
-
                 }
                 catch (SqlException ex) { Console.WriteLine(ex.ToString()); }
                 finally { sqlConnection.Close(); }
