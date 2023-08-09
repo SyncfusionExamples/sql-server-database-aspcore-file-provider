@@ -207,7 +207,8 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                 {
                     return null;
                 }
-                string nameExtension = Path.GetExtension(name).ToLower();
+                string sanitizedFileName = Path.GetFileName(name);
+                string nameExtension = Path.GetExtension(sanitizedFileName).ToLower();
                 AccessRule accessFileRule = new AccessRule();
                 foreach (AccessRule fileRule in AccessDetails.AccessRules)
                 {
