@@ -376,7 +376,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
             try
             {
                 FileManagerDirectoryContent createData = new FileManagerDirectoryContent();
-                if (data == null || data.Length == 0 || data[0] == null)
+                if (data == null || data.Length == 0 || data[0] == null || string.IsNullOrEmpty(data[0].Id))
                 {
                     throw new ArgumentException("Invalid data parameter");
                 }
