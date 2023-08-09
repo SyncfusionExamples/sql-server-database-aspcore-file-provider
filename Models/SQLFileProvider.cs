@@ -207,8 +207,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                 {
                     return null;
                 }
-                string sanitizedFileName = Path.GetFileName(name);
-                string nameExtension = Path.GetExtension(sanitizedFileName).ToLower();
+                string nameExtension = Path.GetExtension(name).ToLower();
                 AccessRule accessFileRule = new AccessRule();
                 foreach (AccessRule fileRule in AccessDetails.AccessRules)
                 {
@@ -372,7 +371,10 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
             try
             {
                 FileManagerDirectoryContent createData = new FileManagerDirectoryContent();
-
+                if (string.IsNullOrEmpty(path) || path.Contains("'") || path.Contains("\""))
+                {
+                    throw new ArgumentException("Invalid path");
+                }
                 AccessPermission createPermission = GetPermission(data[0].Id, data[0].ParentID, data[0].Name, data[0].IsFile, path);
                 if (createPermission != null && (!createPermission.Read || !createPermission.WriteContents))
                 {
