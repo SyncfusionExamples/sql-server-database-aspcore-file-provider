@@ -363,7 +363,12 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
         {
             return rule == Permission.Allow ? true : false;
         }
-
+        private string SanitizeFileName(string fileName)
+        {
+            // Implement your logic to remove or replace invalid characters
+            // For example, you might remove characters that could lead to directory traversal
+            return fileName.Replace("..", "").Trim();
+        }
         // Creates a new folder
         public FileManagerResponse Create(string path, string name, params FileManagerDirectoryContent[] data)
         {
@@ -371,11 +376,13 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
             try
             {
                 FileManagerDirectoryContent createData = new FileManagerDirectoryContent();
-                if (string.IsNullOrEmpty(path) || path.Contains("'") || path.Contains("\""))
+                if (data == null || data.Length == 0 || data[0] == null)
                 {
-                    throw new ArgumentException("Invalid path");
+                    throw new ArgumentException("Invalid data parameter");
                 }
-                AccessPermission createPermission = GetPermission(data[0].Id, data[0].ParentID, data[0].Name, data[0].IsFile, path);
+                // Validate and sanitize the Name property
+                string sanitizedName = SanitizeFileName(data[0].Name);
+                AccessPermission createPermission = GetPermission(data[0].Id, data[0].ParentID, sanitizedName, data[0].IsFile, path);
                 if (createPermission != null && (!createPermission.Read || !createPermission.WriteContents))
                 {
                     accessMessage = createPermission.Message;                       
