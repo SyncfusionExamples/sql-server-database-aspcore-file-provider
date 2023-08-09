@@ -372,14 +372,11 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
             {
                 FileManagerDirectoryContent createData = new FileManagerDirectoryContent();
 
-                if(GetPermission(data[0].Id, data[0].ParentID, data[0].Name, data[0].IsFile, path)!=null)
+                AccessPermission createPermission = GetPermission(data[0].Id, data[0].ParentID, data[0].Name, data[0].IsFile, path);
+                if (createPermission != null && (!createPermission.Read || !createPermission.WriteContents))
                 {
-                    AccessPermission createPermission = GetPermission(data[0].Id, data[0].ParentID, data[0].Name, data[0].IsFile, path);
-                    if (createPermission != null && (!createPermission.Read || !createPermission.WriteContents))
-                    {
-                        accessMessage = createPermission.Message;                       
-                        throw new UnauthorizedAccessException("'" + data[0].Name + "' is not accessible. You need permission to perform the writeContents action.");   
-                    }
+                    accessMessage = createPermission.Message;                       
+                    throw new UnauthorizedAccessException("'" + data[0].Name + "' is not accessible. You need permission to perform the writeContents action.");   
                 }
 
                 sqlConnection = setSQLDBConnection();
