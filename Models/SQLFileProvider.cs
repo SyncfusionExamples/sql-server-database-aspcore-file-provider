@@ -377,8 +377,8 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
             {
                 FileManagerDirectoryContent createData = new FileManagerDirectoryContent();
                 // Validate and sanitize the Name property
-                string sanitizedName = SanitizeFileName(data[0].Name);
-                AccessPermission createPermission = GetPermission(data[0].Id, data[0].ParentID, sanitizedName, data[0].IsFile, path);
+                //string sanitizedName = SanitizeFileName(data[0].Name);
+                AccessPermission createPermission = GetPermission(data[0].Id, data[0].ParentID, data[0].Name, data[0].IsFile, path);
                 if (createPermission != null && (!createPermission.Read || !createPermission.WriteContents))
                 {
                     accessMessage = createPermission.Message;                       
