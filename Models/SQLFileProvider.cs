@@ -383,18 +383,39 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                 try
                 {
                     sqlConnection.Open();
-                    SqlCommand updatecommand = new SqlCommand(("update " + this.tableName + " SET HasChild='True' where ItemID='" + data[0].Id + "'"), sqlConnection);
-                    updatecommand.ExecuteNonQuery();
+                    string updateQuery = "UPDATE " + this.tableName + " SET HasChild = @HasChild WHERE ItemID = @ItemID";
+                    using (SqlCommand updatecommand = new SqlCommand(updateQuery, sqlConnection))
+                    {
+                        updatecommand.Parameters.AddWithValue("@HasChild", true);  // Assuming HasChild should be set to true
+                        updatecommand.Parameters.AddWithValue("@ItemID", data[0].Id);
+                        updatecommand.ExecuteNonQuery();
+                    }
                     sqlConnection.Close();
                     sqlConnection.Open();
-                    string ParentID = null;
-                    SqlDataReader RD = (new SqlCommand(("select ParentID from " + this.tableName + " where ItemID='" + data[0].Id + "'"), sqlConnection)).ExecuteReader();
-                    while (RD.Read()) { ParentID = RD["ParentID"].ToString(); }
+                    string parentID = null;
+                    string selectQuery = "SELECT ParentID FROM " + this.tableName + " WHERE ItemID = @ItemID";
+                    using (SqlCommand selectCommand = new SqlCommand(selectQuery, sqlConnection))
+                    {
+                        selectCommand.Parameters.AddWithValue("@ItemID", data[0].Id);
+
+                        using (SqlDataReader reader = selectCommand.ExecuteReader())
+                        {
+                            if (reader.Read())
+                            {
+                                parentID = reader["ParentID"].ToString();
+                            }
+                        }
+                    }
                     sqlConnection.Close();
                     Int32 count;
                     sqlConnection.Open();
-                    SqlCommand Checkcommand = new SqlCommand("select COUNT(Name) from " + this.tableName + " where ParentID='" + data[0].Id + "' AND MimeType= 'folder' AND Name = '" + name.Trim() + "'", sqlConnection);
-                    count = (Int32)Checkcommand.ExecuteScalar();
+                    string checkQuery = "SELECT COUNT(Name) FROM " + this.tableName + " WHERE ParentID = @ParentID AND MimeType = 'folder' AND Name = @Name";
+                    using (SqlCommand checkCommand = new SqlCommand(checkQuery, sqlConnection))
+                    {
+                        checkCommand.Parameters.AddWithValue("@ParentID", data[0].Id);
+                        checkCommand.Parameters.AddWithValue("@Name", name.Trim());
+                        count = (Int32)checkCommand.ExecuteScalar();
+                    }
                     sqlConnection.Close();
                     if (count != 0)
                     {
@@ -421,24 +442,30 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                         command.ExecuteNonQuery();
                         sqlConnection.Close();
                         sqlConnection.Open();
-                        SqlCommand readcommand = new SqlCommand("Select * from " + tableName + " where ParentID =" + data[0].Id + " and MimeType = 'folder' and Name ='" + name.Trim() + "'", sqlConnection);
-                        SqlDataReader reader = readcommand.ExecuteReader();
-                        while (reader.Read())
+                        string readQuery = "SELECT * FROM " + tableName + " WHERE ParentID = @ParentID AND MimeType = 'folder' AND Name = @Name";
+                        using (SqlCommand readCommand = new SqlCommand(readQuery, sqlConnection))
                         {
-                            createData = new FileManagerDirectoryContent
+                            readCommand.Parameters.AddWithValue("@ParentID", data[0].Id);
+                            readCommand.Parameters.AddWithValue("@Name", name.Trim());
+                            SqlDataReader reader = readCommand.ExecuteReader();
+                            while (reader.Read())
                             {
-                                Name = reader["Name"].ToString().Trim(),
-                                Id = reader["ItemId"].ToString().Trim(),
-                                Size = (long)reader["Size"],
-                                IsFile = (bool)reader["IsFile"],
-                                DateModified = (DateTime)reader["DateModified"],
-                                DateCreated = (DateTime)reader["DateCreated"],
-                                Type = "",
-                                HasChild = (bool)reader["HasChild"],
-                                ParentID = reader["ParentID"].ToString().Trim(),
-                            };
-                            AccessPermission permission = GetPermission(createData.Id, createData.ParentID, createData.Name, createData.IsFile, path);
-                            createData.Permission = permission;
+                                createData = new FileManagerDirectoryContent
+                                {
+                                    Name = reader["Name"].ToString().Trim(),
+                                    Id = reader["ItemId"].ToString().Trim(),
+                                    Size = (long)reader["Size"],
+                                    IsFile = (bool)reader["IsFile"],
+                                    DateModified = (DateTime)reader["DateModified"],
+                                    DateCreated = (DateTime)reader["DateCreated"],
+                                    Type = "",
+                                    HasChild = (bool)reader["HasChild"],
+                                    ParentID = reader["ParentID"].ToString().Trim(),
+                                };
+                                AccessPermission permission = GetPermission(createData.Id, createData.ParentID, createData.Name, createData.IsFile, path);
+                                createData.Permission = permission;
+                            }
+                            reader.Close();
                         }
                     }
                 }
