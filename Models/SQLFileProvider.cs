@@ -380,10 +380,6 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
             try
             {
                 FileManagerDirectoryContent createData = new FileManagerDirectoryContent();
-                if (data == null || data.Length == 0 || data[0] == null)
-                {
-                    throw new ArgumentException("Invalid data parameter");
-                }
                 // Validate and sanitize the Name property
                 string sanitizedName = SanitizeFileName(data[0].Name);
                 AccessPermission createPermission = GetPermission(data[0].Id, data[0].ParentID, sanitizedName, data[0].IsFile, path);
