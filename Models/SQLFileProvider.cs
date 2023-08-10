@@ -874,6 +874,24 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                 return null;
             }
         }
+        private bool IsValidFileManagerDirectoryContent(FileManagerDirectoryContent content)
+        {
+            if (content == null)
+            {
+                return false;
+            }
+
+            // Perform your specific validation checks here
+            // For example, you might check for required fields or valid data formats
+            if (string.IsNullOrWhiteSpace(content.Name) || string.IsNullOrWhiteSpace(content.Id))
+            {
+                return false;
+            }
+
+            // Add more validation checks as needed
+
+            return true;
+        }
         // Deletes the file(s) or folder(s)
         public FileManagerResponse Delete(string path, string[] names, params FileManagerDirectoryContent[] data)
         {
@@ -886,107 +904,113 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                 sqlConnection = setSQLDBConnection();
                 foreach (var file in data)
                 {
-                    string sanitizedName = SanitizeFileName(file.Name);
-                    AccessPermission permission = GetPermission(file.Id, file.ParentID, sanitizedName, file.IsFile, path);
-                    if (permission != null && (!permission.Read || !permission.Write))
+                    if (IsValidFileManagerDirectoryContent(file))
                     {
-                        accessMessage = permission.Message;
-                        throw new UnauthorizedAccessException("'" + file.Name + "' is not accessible.  you need permission to perform the write action.");
-                    }
-                    try
-                    {
-                        sqlConnection.Open();
-                        string query = "SELECT ParentID FROM " + this.tableName + " WHERE ItemID = @FileId";
-                        using (SqlCommand idCommand = new SqlCommand(query, sqlConnection))
+                        // Rest of the processing
+
+                        string sanitizedName = SanitizeFileName(file.Name);
+                        AccessPermission permission = GetPermission(file.Id, file.ParentID, sanitizedName, file.IsFile, path);
+                        if (permission != null && (!permission.Read || !permission.Write))
                         {
-                            idCommand.Parameters.AddWithValue("@FileId", file.Id);                               
-                            using (SqlDataReader idReader = idCommand.ExecuteReader())
-                            {
-                                while (idReader.Read())
-                                {
-                                    ParentID = idReader["ParentID"].ToString();
-                                }
-                            }
+                            accessMessage = permission.Message;
+                            throw new UnauthorizedAccessException("'" + file.Name + "' is not accessible.  you need permission to perform the write action.");
                         }
-                    }
-                    catch (SqlException ex) { Console.WriteLine(ex.ToString()); }
-                    finally { sqlConnection.Close(); }
-                    try
-                    {
-                        int count;
-                        sqlConnection.Open();
-                        string checkQuery = "SELECT COUNT(*) FROM " + this.tableName + " WHERE ParentID = @ParentID AND MimeType = 'folder' AND Name <> @FileName";
-
-                        using (SqlCommand countCommand = new SqlCommand(checkQuery, sqlConnection))
-                        {
-                            countCommand.Parameters.AddWithValue("@ParentID", ParentID);
-                            countCommand.Parameters.AddWithValue("@FileName", file.Name);
-
-                            count = (int)countCommand.ExecuteScalar();
-                        }                        sqlConnection.Close();
-                        if (count == 0)
+                        try
                         {
                             sqlConnection.Open();
-                            string updateQuery = "UPDATE " + this.tableName + " SET HasChild = 'False' WHERE ItemId = @ParentID";
-                            using (SqlCommand updateCommand = new SqlCommand(updateQuery, sqlConnection))
+                            string query = "SELECT ParentID FROM " + this.tableName + " WHERE ItemID = @FileId";
+                            using (SqlCommand idCommand = new SqlCommand(query, sqlConnection))
                             {
-                                updateCommand.Parameters.AddWithValue("@ParentID", ParentID);
-                                updateCommand.ExecuteNonQuery();
+                                idCommand.Parameters.AddWithValue("@FileId", file.Id);
+                                using (SqlDataReader idReader = idCommand.ExecuteReader())
+                                {
+                                    while (idReader.Read())
+                                    {
+                                        ParentID = idReader["ParentID"].ToString();
+                                    }
+                                }
+                            }
+                        }
+                        catch (SqlException ex) { Console.WriteLine(ex.ToString()); }
+                        finally { sqlConnection.Close(); }
+                        try
+                        {
+                            int count;
+                            sqlConnection.Open();
+                            string checkQuery = "SELECT COUNT(*) FROM " + this.tableName + " WHERE ParentID = @ParentID AND MimeType = 'folder' AND Name <> @FileName";
+
+                            using (SqlCommand countCommand = new SqlCommand(checkQuery, sqlConnection))
+                            {
+                                countCommand.Parameters.AddWithValue("@ParentID", ParentID);
+                                countCommand.Parameters.AddWithValue("@FileName", file.Name);
+
+                                count = (int)countCommand.ExecuteScalar();
                             }
                             sqlConnection.Close();
-                        }
-                        sqlConnection.Open();
-                        string readerQuery = "SELECT * FROM " + this.tableName + " WHERE ItemID = @FileId";
-                        using (SqlCommand command = new SqlCommand(readerQuery, sqlConnection))
-                        {
-                            command.Parameters.AddWithValue("@FileId", file.Id);
-
-                            using (SqlDataReader reader = command.ExecuteReader())
+                            if (count == 0)
                             {
-                                while (reader.Read())
+                                sqlConnection.Open();
+                                string updateQuery = "UPDATE " + this.tableName + " SET HasChild = 'False' WHERE ItemId = @ParentID";
+                                using (SqlCommand updateCommand = new SqlCommand(updateQuery, sqlConnection))
                                 {
-                                    deletedData = new FileManagerDirectoryContent
-                                    {
-                                        Name = reader["Name"].ToString().Trim(),
-                                        Size = (long)reader["Size"],
-                                        IsFile = (bool)reader["IsFile"],
-                                        DateModified = (DateTime)reader["DateModified"],
-                                        DateCreated = (DateTime)reader["DateCreated"],
-                                        Type = GetDefaultExtension(reader["MimeType"].ToString()),
-                                        HasChild = (bool)reader["HasChild"],
-                                        Id = reader["ItemID"].ToString()
-                                    };
+                                    updateCommand.Parameters.AddWithValue("@ParentID", ParentID);
+                                    updateCommand.ExecuteNonQuery();
                                 }
-                                reader.Close();
+                                sqlConnection.Close();
                             }
-                        }
-                    }
-                    catch (SqlException ex) { Console.WriteLine(ex.ToString()); }
-                    finally { sqlConnection.Close(); }
-                    try
-                    {
-                        sqlConnection.Open();
-                        string deleteQuery = "DELETE FROM " + this.tableName + " WHERE ItemID = @FileId";
-                        using (SqlCommand deleteCommand = new SqlCommand(deleteQuery, sqlConnection))
-                        {
-                            deleteCommand.Parameters.AddWithValue("@FileId", file.Id);
-                            deleteCommand.ExecuteNonQuery();
-                        }
-                        string absoluteFilePath = Path.Combine(Path.GetTempPath(), file.Name);
-                        var tempDirectory = new DirectoryInfo(Path.GetTempPath());
-                        foreach (var newFileName in Directory.GetFiles(tempDirectory.ToString()))
-                        {
-                            if (newFileName.ToString() == absoluteFilePath)
+                            sqlConnection.Open();
+                            string readerQuery = "SELECT * FROM " + this.tableName + " WHERE ItemID = @FileId";
+                            using (SqlCommand command = new SqlCommand(readerQuery, sqlConnection))
                             {
-                                File.Delete(newFileName);
-                            }
+                                command.Parameters.AddWithValue("@FileId", file.Id);
 
+                                using (SqlDataReader reader = command.ExecuteReader())
+                                {
+                                    while (reader.Read())
+                                    {
+                                        deletedData = new FileManagerDirectoryContent
+                                        {
+                                            Name = reader["Name"].ToString().Trim(),
+                                            Size = (long)reader["Size"],
+                                            IsFile = (bool)reader["IsFile"],
+                                            DateModified = (DateTime)reader["DateModified"],
+                                            DateCreated = (DateTime)reader["DateCreated"],
+                                            Type = GetDefaultExtension(reader["MimeType"].ToString()),
+                                            HasChild = (bool)reader["HasChild"],
+                                            Id = reader["ItemID"].ToString()
+                                        };
+                                    }
+                                    reader.Close();
+                                }
+                            }
                         }
+                        catch (SqlException ex) { Console.WriteLine(ex.ToString()); }
+                        finally { sqlConnection.Close(); }
+                        try
+                        {
+                            sqlConnection.Open();
+                            string deleteQuery = "DELETE FROM " + this.tableName + " WHERE ItemID = @FileId";
+                            using (SqlCommand deleteCommand = new SqlCommand(deleteQuery, sqlConnection))
+                            {
+                                deleteCommand.Parameters.AddWithValue("@FileId", file.Id);
+                                deleteCommand.ExecuteNonQuery();
+                            }
+                            string absoluteFilePath = Path.Combine(Path.GetTempPath(), file.Name);
+                            var tempDirectory = new DirectoryInfo(Path.GetTempPath());
+                            foreach (var newFileName in Directory.GetFiles(tempDirectory.ToString()))
+                            {
+                                if (newFileName.ToString() == absoluteFilePath)
+                                {
+                                    File.Delete(newFileName);
+                                }
+
+                            }
+                        }
+                        catch (SqlException ex) { Console.WriteLine(ex.ToString()); }
+                        finally { sqlConnection.Close(); }
+                        newData.Add(deletedData);
+                        remvoeResponse.Files = newData;
                     }
-                    catch (SqlException ex) { Console.WriteLine(ex.ToString()); }
-                    finally { sqlConnection.Close(); }
-                    newData.Add(deletedData);
-                    remvoeResponse.Files = newData;
                 }
                 sqlConnection.Open();
                 string removeQuery = "WITH cte AS (SELECT ItemID, Name, ParentID FROM " + this.tableName + " WHERE ParentID = @ParentId " +
