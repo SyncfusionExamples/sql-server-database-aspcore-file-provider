@@ -64,6 +64,12 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
             fileName = fileName.Trim();
             return fileName;
         }
+        private string SanitizePath(string path)
+        {
+            // Implement your logic to prevent directory traversal
+            // For example, you might remove sequences like "../"
+            return path.Replace("../", "").Trim();
+        }
         // Reads the files from SQL table
         public FileManagerResponse GetFiles(string path, bool showHiddenItems, params FileManagerDirectoryContent[] data)
         {
@@ -210,6 +216,9 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
 
         protected AccessPermission GetPermission(string id,  string parentId, string name, bool isFile, string path)
         {
+            name = SanitizeFileName(name);
+            // Sanitize path to prevent directory traversal
+            path = SanitizePath(path);
             AccessPermission FilePermission = new AccessPermission();
             if (isFile)
             {
