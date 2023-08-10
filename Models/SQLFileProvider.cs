@@ -884,7 +884,8 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                 sqlConnection = setSQLDBConnection();
                 foreach (var file in data)
                 {
-                    AccessPermission permission = GetPermission(file.Id, file.ParentID, file.Name, file.IsFile, path);
+                    string sanitizedName = SanitizeFileName(file.Name);
+                    AccessPermission permission = GetPermission(file.Id, file.ParentID, sanitizedName, file.IsFile, path);
                     if (permission != null && (!permission.Read || !permission.Write))
                     {
                         accessMessage = permission.Message;
