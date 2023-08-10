@@ -504,7 +504,8 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                     foreach (FileManagerDirectoryContent item in data)
                     {
                         bool isFile = item.IsFile;
-                        AccessPermission permission = GetPermission(item.Id, item.ParentID, item.Name, isFile, path);
+                        string sanitizedName = SanitizeFileName(item.Name);
+                        AccessPermission permission = GetPermission(item.Id, item.ParentID, sanitizedName, isFile, path);
                         if (permission != null && (!permission.Read || !permission.Download))
                         {
                             throw new UnauthorizedAccessException("'" + item.Name + "' is not accessible. Access is denied.");
@@ -1038,7 +1039,8 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
 
             try
             {
-                AccessPermission permission = GetPermission(data[0].Id, data[0].ParentID, data[0].Name, data[0].IsFile, path);
+                string sanitizedName = SanitizeFileName(data[0].Name);
+                AccessPermission permission = GetPermission(data[0].Id, data[0].ParentID, sanitizedName, data[0].IsFile, path);
                 if (permission != null && (!permission.Read || !permission.Upload))
                 {
                      accessMessage = permission.Message;
