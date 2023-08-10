@@ -56,9 +56,13 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
         }
         private string SanitizeFileName(string fileName)
         {
-            // Implement your logic to remove or replace invalid characters
-            // For example, you might remove characters that could lead to directory traversal
-            return fileName.Replace("..", "").Trim();
+            string invalidChars = "\\/:*?\"<>|";
+            foreach (char invalidChar in invalidChars)
+            {
+                fileName = fileName.Replace(invalidChar.ToString(), "");
+            }
+            fileName = fileName.Trim();
+            return fileName;
         }
         // Reads the files from SQL table
         public FileManagerResponse GetFiles(string path, bool showHiddenItems, params FileManagerDirectoryContent[] data)
