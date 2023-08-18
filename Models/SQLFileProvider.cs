@@ -54,7 +54,16 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
         {
             this.AccessDetails = details;
         }
-
+        private string SanitizeFileName(string fileName)
+        {
+            string invalidChars = "\\/:*?\"<>|";
+            foreach (char invalidChar in invalidChars)
+            {
+                fileName = fileName.Replace(invalidChar.ToString(), "");
+            }
+            fileName = fileName.Trim();
+            return fileName;
+        }
         // Reads the files from SQL table
         public FileManagerResponse GetFiles(string path, bool showHiddenItems, params FileManagerDirectoryContent[] data)
         {
@@ -70,8 +79,12 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                     parentID = this.rootId;
                     try
                     {
-                        SqlDataReader reader = (new SqlCommand(("select ItemID from " + this.tableName + " where ParentID='" + rootId + "'"), sqlConnection)).ExecuteReader();
-                        while (reader.Read()) { isRoot = reader["ItemID"].ToString(); }
+                        using (SqlCommand command = new SqlCommand("select ItemID from " + this.tableName + " where ParentID=@ParentID", sqlConnection))
+                        {
+                            command.Parameters.AddWithValue("@ParentID", rootId);
+                            SqlDataReader reader = command.ExecuteReader();
+                            while (reader.Read()) { isRoot = reader["ItemID"].ToString(); }
+                        }
                     }
                     catch (SqlException ex) { Console.WriteLine(ex.ToString()); }
                     finally { sqlConnection.Close(); }
@@ -80,8 +93,12 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                 {
                     try
                     {
-                        SqlDataReader reader = (new SqlCommand(("select ParentID from " + this.tableName + " where ItemID='" + data[0].Id + "'"), sqlConnection)).ExecuteReader();
-                        while (reader.Read()) { parentID = reader["ParentID"].ToString(); }
+                        using (SqlCommand command = new SqlCommand("select ParentID from " + this.tableName + " where ItemID=@ItemID", sqlConnection))
+                        {
+                            command.Parameters.AddWithValue("@ItemID", data[0].Id);
+                            SqlDataReader reader = command.ExecuteReader();
+                            while (reader.Read()) { parentID = reader["ParentID"].ToString(); }
+                        }
                     }
                     catch (SqlException ex) { Console.WriteLine(ex.ToString()); }
                     finally { sqlConnection.Close(); }
@@ -96,24 +113,36 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                     try
                     {
                         sqlConnection.Open();
-                        SqlDataReader reader = (new SqlCommand(("select * from " + this.tableName + ((data.Length == 0) ? (" where ParentID='" + parentID) : " where ItemID='" + data[0].Id) + "'"), sqlConnection)).ExecuteReader();
-                        while (reader.Read())
+                        using (SqlCommand command = new SqlCommand("select * from " + this.tableName + " where " + ((data.Length == 0) ? "ParentID=@ParentID" : "ItemID=@ItemID"), sqlConnection))
                         {
-                            cwd = new FileManagerDirectoryContent
+                            if (data.Length == 0)
                             {
-                                Name = reader["Name"].ToString().Trim(),
-                                Size = (long)reader["Size"],
-                                IsFile = (bool)reader["IsFile"],
-                                FilterPath = data.Length > 0 ? data[0].FilterPath : "",
-                                DateModified = (DateTime)reader["DateModified"],
-                                DateCreated = (DateTime)reader["DateCreated"],
-                                Type = GetDefaultExtension(reader["MimeType"].ToString()),
-                                Id = reader["ItemID"].ToString(),
-                                HasChild = (bool)reader["HasChild"],
-                                ParentID = reader["ParentID"].ToString(),
-                            };
-                            AccessPermission permission = GetPermission(cwd.Id, cwd.ParentID, cwd.Name, cwd.IsFile, path);
-                            cwd.Permission = permission;
+                                command.Parameters.AddWithValue("@ParentID", parentID);
+                            }
+                            else
+                            {
+                                command.Parameters.AddWithValue("@ItemID", data[0].Id);
+                            }
+                            SqlDataReader reader = command.ExecuteReader();
+                            while (reader.Read())
+                            {
+                                cwd = new FileManagerDirectoryContent
+                                {
+                                    Name = reader["Name"].ToString().Trim(),
+                                    Size = (long)reader["Size"],
+                                    IsFile = (bool)reader["IsFile"],
+                                    FilterPath = data.Length > 0 ? data[0].FilterPath : "",
+                                    DateModified = (DateTime)reader["DateModified"],
+                                    DateCreated = (DateTime)reader["DateCreated"],
+                                    Type = GetDefaultExtension(reader["MimeType"].ToString()),
+                                    Id = reader["ItemID"].ToString(),
+                                    HasChild = (bool)reader["HasChild"],
+                                    ParentID = reader["ParentID"].ToString(),
+                                };
+                                string sanitizedName = SanitizeFileName(cwd.Name);
+                                AccessPermission permission = GetPermission(cwd.Id, cwd.ParentID, sanitizedName, cwd.IsFile, path);
+                                cwd.Permission = permission;
+                            }
                         }
                     }
                     catch (SqlException ex) { Console.WriteLine(ex.ToString()); }
@@ -123,34 +152,37 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                 try
                 {
                     sqlConnection.Open();
-                    SqlDataReader reader = (new SqlCommand(("select * from " + this.tableName + " where ParentID = '" + ((path == "/") ? isRoot : data[0].Id) + "'"), sqlConnection)).ExecuteReader();
-                    while (reader.Read())
+                    using (SqlCommand command = new SqlCommand("select * from " + this.tableName + " where ParentID = @ParentID", sqlConnection))
                     {
-                        var childFiles = new FileManagerDirectoryContent
+                        command.Parameters.AddWithValue("@ParentID", (path == "/") ? isRoot : data[0].Id);
+                        SqlDataReader reader = command.ExecuteReader();
+                        while (reader.Read())
                         {
-                            Name = reader["Name"].ToString().Trim(),
-                            Size = (long)reader["Size"],
-                            IsFile = (bool)reader["IsFile"],
-                            DateModified = (DateTime)reader["DateModified"],
-                            DateCreated = (DateTime)reader["DateCreated"],
-                            HasChild = (bool)reader["HasChild"],
-                            Type = GetDefaultExtension(reader["MimeType"].ToString()),
-                            Id = reader["ItemID"].ToString(),
-                            ParentID = reader["ParentID"].ToString(),
-                        };
+                            var childFiles = new FileManagerDirectoryContent
+                            {
+                                Name = reader["Name"].ToString().Trim(),
+                                Size = (long)reader["Size"],
+                                IsFile = (bool)reader["IsFile"],
+                                DateModified = (DateTime)reader["DateModified"],
+                                DateCreated = (DateTime)reader["DateCreated"],
+                                HasChild = (bool)reader["HasChild"],
+                                Type = GetDefaultExtension(reader["MimeType"].ToString()),
+                                Id = reader["ItemID"].ToString(),
+                                ParentID = reader["ParentID"].ToString(),
+                            };
 
-                        AccessPermission permission = GetPermission(childFiles.Id, childFiles.ParentID, childFiles.Name, childFiles.IsFile, path);
-                        childFiles.Permission = permission;
-                        files.Add(childFiles);
+                            AccessPermission permission = GetPermission(childFiles.Id, childFiles.ParentID, SanitizeFileName(childFiles.Name), childFiles.IsFile, path);
+                            childFiles.Permission = permission;
+                            files.Add(childFiles);
+                        }
+                        reader.Close();
+                        cwd.FilterId = GetFilterId(cwd.Id);
+                        foreach (var file in files)
+                        {
+                            file.FilterId = GetFilterId(file.Id);
+                            file.FilterPath = data.Length != 0 ? GetFilterPath(file.Id) : "/";
+                        }
                     }
-                    reader.Close();
-                    cwd.FilterId = GetFilterId(cwd.Id);
-                    foreach (var file in files)
-                    {
-                        file.FilterId = GetFilterId(file.Id);
-                        file.FilterPath = data.Length != 0 ? GetFilterPath(file.Id) : "/";
-                    }
-
                 }
                 catch (SqlException ex) { Console.WriteLine(ex.ToString()); }
                 finally { sqlConnection.Close(); }
@@ -341,7 +373,6 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
         {
             return rule == Permission.Allow ? true : false;
         }
-
         // Creates a new folder
         public FileManagerResponse Create(string path, string name, params FileManagerDirectoryContent[] data)
         {
@@ -349,8 +380,9 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
             try
             {
                 FileManagerDirectoryContent createData = new FileManagerDirectoryContent();
-
-                AccessPermission createPermission = GetPermission(data[0].Id, data[0].ParentID, data[0].Name, data[0].IsFile, path);
+                // Validate and sanitize the Name property
+                string sanitizedName = SanitizeFileName(data[0].Name);
+                AccessPermission createPermission = GetPermission(data[0].Id, data[0].ParentID, sanitizedName, data[0].IsFile, path);
                 if (createPermission != null && (!createPermission.Read || !createPermission.WriteContents))
                 {
                     accessMessage = createPermission.Message;                       
@@ -361,18 +393,39 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                 try
                 {
                     sqlConnection.Open();
-                    SqlCommand updatecommand = new SqlCommand(("update " + this.tableName + " SET HasChild='True' where ItemID='" + data[0].Id + "'"), sqlConnection);
-                    updatecommand.ExecuteNonQuery();
+                    string updateQuery = "UPDATE " + this.tableName + " SET HasChild = @HasChild WHERE ItemID = @ItemID";
+                    using (SqlCommand updatecommand = new SqlCommand(updateQuery, sqlConnection))
+                    {
+                        updatecommand.Parameters.AddWithValue("@HasChild", true);  // Assuming HasChild should be set to true
+                        updatecommand.Parameters.AddWithValue("@ItemID", data[0].Id);
+                        updatecommand.ExecuteNonQuery();
+                    }
                     sqlConnection.Close();
                     sqlConnection.Open();
-                    string ParentID = null;
-                    SqlDataReader RD = (new SqlCommand(("select ParentID from " + this.tableName + " where ItemID='" + data[0].Id + "'"), sqlConnection)).ExecuteReader();
-                    while (RD.Read()) { ParentID = RD["ParentID"].ToString(); }
+                    string parentID = null;
+                    string selectQuery = "SELECT ParentID FROM " + this.tableName + " WHERE ItemID = @ItemID";
+                    using (SqlCommand selectCommand = new SqlCommand(selectQuery, sqlConnection))
+                    {
+                        selectCommand.Parameters.AddWithValue("@ItemID", data[0].Id);
+
+                        using (SqlDataReader reader = selectCommand.ExecuteReader())
+                        {
+                            if (reader.Read())
+                            {
+                                parentID = reader["ParentID"].ToString();
+                            }
+                        }
+                    }
                     sqlConnection.Close();
                     Int32 count;
                     sqlConnection.Open();
-                    SqlCommand Checkcommand = new SqlCommand("select COUNT(Name) from " + this.tableName + " where ParentID='" + data[0].Id + "' AND MimeType= 'folder' AND Name = '" + name.Trim() + "'", sqlConnection);
-                    count = (Int32)Checkcommand.ExecuteScalar();
+                    string checkQuery = "SELECT COUNT(Name) FROM " + this.tableName + " WHERE ParentID = @ParentID AND MimeType = 'folder' AND Name = @Name";
+                    using (SqlCommand checkCommand = new SqlCommand(checkQuery, sqlConnection))
+                    {
+                        checkCommand.Parameters.AddWithValue("@ParentID", data[0].Id);
+                        checkCommand.Parameters.AddWithValue("@Name", name.Trim());
+                        count = (Int32)checkCommand.ExecuteScalar();
+                    }
                     sqlConnection.Close();
                     if (count != 0)
                     {
@@ -399,24 +452,30 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                         command.ExecuteNonQuery();
                         sqlConnection.Close();
                         sqlConnection.Open();
-                        SqlCommand readcommand = new SqlCommand("Select * from " + tableName + " where ParentID =" + data[0].Id + " and MimeType = 'folder' and Name ='" + name.Trim() + "'", sqlConnection);
-                        SqlDataReader reader = readcommand.ExecuteReader();
-                        while (reader.Read())
+                        string readQuery = "SELECT * FROM " + tableName + " WHERE ParentID = @ParentID AND MimeType = 'folder' AND Name = @Name";
+                        using (SqlCommand readCommand = new SqlCommand(readQuery, sqlConnection))
                         {
-                            createData = new FileManagerDirectoryContent
+                            readCommand.Parameters.AddWithValue("@ParentID", data[0].Id);
+                            readCommand.Parameters.AddWithValue("@Name", name.Trim());
+                            SqlDataReader reader = readCommand.ExecuteReader();
+                            while (reader.Read())
                             {
-                                Name = reader["Name"].ToString().Trim(),
-                                Id = reader["ItemId"].ToString().Trim(),
-                                Size = (long)reader["Size"],
-                                IsFile = (bool)reader["IsFile"],
-                                DateModified = (DateTime)reader["DateModified"],
-                                DateCreated = (DateTime)reader["DateCreated"],
-                                Type = "",
-                                HasChild = (bool)reader["HasChild"],
-                                ParentID = reader["ParentID"].ToString().Trim(),
-                            };
-                            AccessPermission permission = GetPermission(createData.Id, createData.ParentID, createData.Name, createData.IsFile, path);
-                            createData.Permission = permission;
+                                createData = new FileManagerDirectoryContent
+                                {
+                                    Name = reader["Name"].ToString().Trim(),
+                                    Id = reader["ItemId"].ToString().Trim(),
+                                    Size = (long)reader["Size"],
+                                    IsFile = (bool)reader["IsFile"],
+                                    DateModified = (DateTime)reader["DateModified"],
+                                    DateCreated = (DateTime)reader["DateCreated"],
+                                    Type = "",
+                                    HasChild = (bool)reader["HasChild"],
+                                    ParentID = reader["ParentID"].ToString().Trim(),
+                                };
+                                AccessPermission permission = GetPermission(createData.Id, createData.ParentID, SanitizeFileName(createData.Name), createData.IsFile, path);
+                                createData.Permission = permission;
+                            }
+                            reader.Close();
                         }
                     }
                 }
@@ -449,30 +508,36 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                     foreach (FileManagerDirectoryContent item in data)
                     {
                         bool isFile = item.IsFile;
-                        AccessPermission permission = GetPermission(item.Id, item.ParentID, item.Name, isFile, path);
+                        string sanitizedName = SanitizeFileName(item.Name);
+                        AccessPermission permission = GetPermission(item.Id, item.ParentID, sanitizedName, isFile, path);
                         if (permission != null && (!permission.Read || !permission.Download))
                         {
                             throw new UnauthorizedAccessException("'" + item.Name + "' is not accessible. Access is denied.");
                         }
                         try
                         {
-                            SqlDataReader myReader = (new SqlCommand("select * from " + tableName + " where ItemId =" + item.Id, sqlConnection)).ExecuteReader();
-                            while (myReader.Read())
+                            using (SqlCommand sqlCommand = new SqlCommand("SELECT * FROM " + tableName + " WHERE ItemId = @ItemId", sqlConnection))
                             {
+                                sqlCommand.Parameters.AddWithValue("@ItemId", item.Id);
 
-                                if (File.Exists(Path.Combine(Path.GetTempPath(), item.Name)))
-                                    File.Delete(Path.Combine(Path.GetTempPath(), item.Name));
-                                if (item.IsFile)
+                                SqlDataReader myReader = sqlCommand.ExecuteReader();
+                                while (myReader.Read())
                                 {
-                                    using (Stream file = File.OpenWrite(Path.Combine(Path.GetTempPath(), item.Name)))
+
+                                    if (File.Exists(Path.Combine(Path.GetTempPath(), item.Name)))
+                                        File.Delete(Path.Combine(Path.GetTempPath(), item.Name));
+                                    if (item.IsFile)
                                     {
-                                        file.Write(((byte[])myReader["Content"]), 0, ((byte[])myReader["Content"]).Length);
-                                        if (files.IndexOf(item.Name) == -1) files.Add(item.Name);
+                                        using (Stream file = File.OpenWrite(Path.Combine(Path.GetTempPath(), item.Name)))
+                                        {
+                                            file.Write(((byte[])myReader["Content"]), 0, ((byte[])myReader["Content"]).Length);
+                                            if (files.IndexOf(item.Name) == -1) files.Add(item.Name);
+                                        }
                                     }
+                                    else if (files.IndexOf(item.Name) == -1) files.Add(item.Name);
                                 }
-                                else if (files.IndexOf(item.Name) == -1) files.Add(item.Name);
+                                myReader.Close();
                             }
-                            myReader.Close();
                         }
                         catch (Exception ex) { throw ex; }
                     }
@@ -498,10 +563,19 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                                 for (var i = 0; i < files.Count; i++)
                                 {
                                     bool isFile = false;
-                                    sqlConnection.Open();
-                                    SqlCommand downloadCommand = new SqlCommand("select * from " + tableName + " where Name ='" + files[i] + "'", sqlConnection);
-                                    SqlDataReader downloadCommandReader = downloadCommand.ExecuteReader();
-                                    while (downloadCommandReader.Read()) { isFile = (bool)downloadCommandReader["IsFile"]; }
+                                    using (SqlCommand downloadCommand = new SqlCommand("SELECT * FROM " + tableName + " WHERE Name = @FileName", sqlConnection))
+                                    {
+                                        downloadCommand.Parameters.AddWithValue("@FileName", files[i]);
+                                        sqlConnection.Open();
+
+                                        using (SqlDataReader downloadCommandReader = downloadCommand.ExecuteReader())
+                                        {
+                                            while (downloadCommandReader.Read())
+                                            {
+                                                isFile = (bool)downloadCommandReader["IsFile"];
+                                            }
+                                        }
+                                    }
                                     sqlConnection.Close();
                                     if (isFile)
                                         zipEntry = archive.CreateEntryFromFile(Path.GetTempPath() + files[i], files[i], CompressionLevel.Fastest);
@@ -552,10 +626,17 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                 string fileName = "";
                 bool isFile = false;
                 zipEntry = archive.CreateEntry(folderName + "/");
-                SqlDataReader readCommmandReader = (new SqlCommand("select * from " + tableName + " where Name ='" + subFolderName + "'", sqlConnection)).ExecuteReader();
-                while (readCommmandReader.Read()) { parentID = readCommmandReader["ItemID"].ToString().Trim(); }
-                readCommmandReader.Close();
-                SqlDataReader downloadReadCommandReader = (new SqlCommand("select * from " + tableName + " where ParentID ='" + parentID + "'", sqlConnection)).ExecuteReader();
+                SqlCommand readCommand = new SqlCommand("SELECT * FROM " + tableName + " WHERE Name = @SubFolderName", sqlConnection);
+                readCommand.Parameters.AddWithValue("@SubFolderName", subFolderName);
+                SqlDataReader readCommandReader = readCommand.ExecuteReader();
+                while (readCommandReader.Read())
+                {
+                    parentID = readCommandReader["ItemID"].ToString().Trim();
+                }
+                readCommandReader.Close();
+                SqlCommand downloadReadCommand = new SqlCommand("SELECT * FROM " + tableName + " WHERE ParentID = @ParentID", sqlConnection);
+                downloadReadCommand.Parameters.AddWithValue("@ParentID", parentID);
+                SqlDataReader downloadReadCommandReader = downloadReadCommand.ExecuteReader();
                 while (downloadReadCommandReader.Read())
                 {
                     fileName = downloadReadCommandReader["Name"].ToString().Trim();
@@ -585,21 +666,45 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
         {
             long sizeValue = 0;
             sqlConnection.Open();
-            foreach (var id in idValue)
-            {
-                this.checkedIDs.Add(id);
-                string removeQuery = "with cte as (select ItemID, Name, ParentID from " + this.tableName + " where ParentID =" + id + " union all select p.ItemID, p.Name, p.ParentID from Product p inner join cte on p.ParentID = cte.ItemID) select ItemID from cte;";
-                SqlDataReader removeCommandReader = (new SqlCommand(removeQuery, sqlConnection)).ExecuteReader();
-                while (removeCommandReader.Read()) { this.checkedIDs.Add(removeCommandReader["ItemID"].ToString()); }
-                removeCommandReader.Close();
-            }
+                foreach (var id in idValue)
+                {
+                    this.checkedIDs.Add(id);
+                    string removeQuery = "WITH cte AS (SELECT ItemID, Name, ParentID FROM " + this.tableName + " WHERE ParentID = @ParentID " +
+                                        "UNION ALL SELECT p.ItemID, p.Name, p.ParentID FROM Product p INNER JOIN cte ON p.ParentID = cte.ItemID) " +
+                                        "SELECT ItemID FROM cte;";
+
+                    using (SqlCommand removeCommand = new SqlCommand(removeQuery, sqlConnection))
+                    {
+                        removeCommand.Parameters.AddWithValue("@ParentID", id);
+
+                        using (SqlDataReader removeCommandReader = removeCommand.ExecuteReader())
+                        {
+                            while (removeCommandReader.Read())
+                            {
+                                this.checkedIDs.Add(removeCommandReader["ItemID"].ToString());
+                            }
+                        }
+                    }
+                }
             sqlConnection.Close();
             if (this.checkedIDs.Count > 0)
             {
                 sqlConnection.Open();
-                string query = "select Size from " + this.tableName + " where ItemID IN (" + string.Join(", ", this.checkedIDs.Select(f => "'" + f + "'")) + ")";
-                SqlDataReader getDetailsCommandReader = (new SqlCommand(query, sqlConnection)).ExecuteReader();
-                while (getDetailsCommandReader.Read()) { sizeValue = sizeValue + long.Parse((getDetailsCommandReader["Size"]).ToString()); }
+                string query = "SELECT Size FROM " + this.tableName + " WHERE ItemID IN (" + string.Join(", ", this.checkedIDs.Select(f => "@" + f)) + ")";
+                using (SqlCommand getDetailsCommand = new SqlCommand(query, sqlConnection))
+                {
+                    foreach (var id in this.checkedIDs)
+                    {
+                        getDetailsCommand.Parameters.AddWithValue("@" + id, id);
+                    }
+                    using (SqlDataReader getDetailsCommandReader = getDetailsCommand.ExecuteReader())
+                    {
+                        while (getDetailsCommandReader.Read())
+                        {
+                            sizeValue += Convert.ToInt64(getDetailsCommandReader["Size"]);
+                        }
+                    }
+                }
                 sqlConnection.Close();
             }
             this.checkedIDs = null;
@@ -617,7 +722,8 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
             FileDetails detailFiles = new FileDetails();
             try
             {
-                string queryString = "select * from " + this.tableName + " where ItemID='" + (data[0].Id == null ? this.rootId : data[0].Id) + "'";
+                string queryString = "SELECT * FROM " + this.tableName + " WHERE ItemID = @ItemId";
+                string itemId = data[0].Id == null ? this.rootId : data[0].Id;
                 bool isNamesAvailable = names.Length > 0 ? true : false;
                 try
                 {
@@ -648,51 +754,59 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                     while (rootQueryReader.Read()) { rootDirectory = rootQueryReader["Name"].ToString().Trim(); }
                     sqlConnection.Close();
                     sqlConnection.Open();
-                    SqlDataReader reader = (new SqlCommand(queryString, sqlConnection)).ExecuteReader();
-                    if (names.Length == 1)
+                    using (SqlCommand command = new SqlCommand(queryString, sqlConnection))
                     {
-                        string detailsID = "";
-                        string detailsParentId = "";
-                        string absoluteFilePath = Path.Combine(Path.GetTempPath(), names[0]);
-                        while (reader.Read())
+                        command.Parameters.AddWithValue("@ItemId", itemId);
+
+                        using (SqlDataReader reader = command.ExecuteReader())
                         {
-                            detailFiles = new FileDetails
+                            if (names.Length == 1)
                             {
-                                Name = reader["Name"].ToString().Trim(),
-                                IsFile = (bool)reader["IsFile"],
-                                Size = (bool)reader["IsFile"] ? ByteConversion(long.Parse((reader["Size"]).ToString())) : sizeValue,
-                                Modified = (DateTime)reader["DateModified"],
-                                Created = (DateTime)reader["DateCreated"]
-                            };
-                            detailsID = reader["ItemID"].ToString().Trim();
-                            detailsParentId = reader["ParentID"].ToString().Trim();
-                            AccessPermission permission = GetPermission(detailsID, detailsParentId, detailFiles.Name, detailFiles.IsFile, path);
-                            detailFiles.Permission = permission;
-                        }
-                        reader.Close();
-                        detailFiles.Location = (rootDirectory != detailFiles.Name) ? (rootDirectory + GetFilterPath(detailsID) + detailFiles.Name).Replace("/", @"\") : rootDirectory;
-                    }
-                    else
-                    {
-                        detailFiles = new FileDetails();
-                        foreach (var item in data)
-                        {
-                            detailFiles.Name = previousName == "" ? previousName = item.Name : previousName = previousName + ", " + item.Name;
-                            previousPath = previousPath == "" ? rootDirectory + item.FilterPath : previousPath;
-                            if (previousPath == rootDirectory + item.FilterPath && !isVariousFolders)
-                            {
-                                previousPath = rootDirectory + item.FilterPath;
-                                detailFiles.Location = (rootDirectory + (item.FilterPath).Replace("/", @"\")).Substring(0, (previousPath.Length - 1));
+                                string detailsID = "";
+                                string detailsParentId = "";
+                                string absoluteFilePath = Path.Combine(Path.GetTempPath(), names[0]);
+                                while (reader.Read())
+                                {
+                                    detailFiles = new FileDetails
+                                    {
+                                        Name = reader["Name"].ToString().Trim(),
+                                        IsFile = (bool)reader["IsFile"],
+                                        Size = (bool)reader["IsFile"] ? ByteConversion(long.Parse((reader["Size"]).ToString())) : sizeValue,
+                                        Modified = (DateTime)reader["DateModified"],
+                                        Created = (DateTime)reader["DateCreated"]
+                                    };
+                                    detailsID = reader["ItemID"].ToString().Trim();
+                                    detailsParentId = reader["ParentID"].ToString().Trim();
+                                    string sanitizedName = SanitizeFileName(detailFiles.Name);
+                                    AccessPermission permission = GetPermission(detailsID, detailsParentId, sanitizedName, detailFiles.IsFile, path);
+                                    detailFiles.Permission = permission;
+                                }
+                                reader.Close();
+                                detailFiles.Location = (rootDirectory != detailFiles.Name) ? (rootDirectory + GetFilterPath(detailsID) + detailFiles.Name).Replace("/", @"\") : rootDirectory;
                             }
                             else
                             {
-                                isVariousFolders = true;
-                                detailFiles.Location = "Various Folders";
+                                detailFiles = new FileDetails();
+                                foreach (var item in data)
+                                {
+                                    detailFiles.Name = previousName == "" ? previousName = item.Name : previousName = previousName + ", " + item.Name;
+                                    previousPath = previousPath == "" ? rootDirectory + item.FilterPath : previousPath;
+                                    if (previousPath == rootDirectory + item.FilterPath && !isVariousFolders)
+                                    {
+                                        previousPath = rootDirectory + item.FilterPath;
+                                        detailFiles.Location = (rootDirectory + (item.FilterPath).Replace("/", @"\")).Substring(0, (previousPath.Length - 1));
+                                    }
+                                    else
+                                    {
+                                        isVariousFolders = true;
+                                        detailFiles.Location = "Various Folders";
+                                    }
+                                    if (item.IsFile) size = size + item.Size;
+                                }
+                                detailFiles.Size = ByteConversion((long)(size + folderValue));
+                                detailFiles.MultipleFiles = true;
                             }
-                            if (item.IsFile) size = size + item.Size;
                         }
-                        detailFiles.Size = ByteConversion((long)(size + folderValue));
-                        detailFiles.MultipleFiles = true;
                     }
                 }
                 catch (SqlException ex) { Console.WriteLine(ex.ToString()); }
@@ -739,15 +853,22 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                 }
                 sqlConnection = setSQLDBConnection();
                 sqlConnection.Open();
-                SqlCommand myCommand = new SqlCommand("select * from " + tableName + " where ItemID =" + id, sqlConnection);
-                SqlDataReader myReader = myCommand.ExecuteReader();
-                while (myReader.Read())
+                string query = "SELECT * FROM " + tableName + " WHERE ItemID = @ItemId";
+                using (SqlCommand myCommand = new SqlCommand(query, sqlConnection))
                 {
-                    try
+                    myCommand.Parameters.AddWithValue("@ItemId", id);
+                    
+                    using (SqlDataReader myReader = myCommand.ExecuteReader())
                     {
-                        return new FileStreamResult(new MemoryStream((byte[])myReader["Content"]), "APPLICATION/octet-stream"); ;
+                        while (myReader.Read())
+                        {
+                            try
+                            {
+                                return new FileStreamResult(new MemoryStream((byte[])myReader["Content"]), "APPLICATION/octet-stream"); ;
+                            }
+                            catch (Exception ex) { throw ex; }
+                        }
                     }
-                    catch (Exception ex) { throw ex; }
                 }
                 sqlConnection.Close();
                 return null;
@@ -767,9 +888,10 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                 FileManagerDirectoryContent deletedData = new FileManagerDirectoryContent();
                 List<FileManagerDirectoryContent> newData = new List<FileManagerDirectoryContent>();
                 sqlConnection = setSQLDBConnection();
-                foreach (var file in data)
+                foreach (FileManagerDirectoryContent file in data)
                 {
-                    AccessPermission permission = GetPermission(file.Id, file.ParentID, file.Name, file.IsFile, path);
+                    string sanitizedName = SanitizeFileName(file.Name);
+                    AccessPermission permission = GetPermission(file.Id, file.ParentID, sanitizedName, file.IsFile, path);
                     if (permission != null && (!permission.Read || !permission.Write))
                     {
                         accessMessage = permission.Message;
@@ -778,8 +900,18 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                     try
                     {
                         sqlConnection.Open();
-                        SqlDataReader idreader = (new SqlCommand(("select ParentID from " + this.tableName + " where ItemID='" + file.Id + "'"), sqlConnection)).ExecuteReader();
-                        while (idreader.Read()) { ParentID = idreader["ParentID"].ToString(); }
+                        string query = "SELECT ParentID FROM " + this.tableName + " WHERE ItemID = @FileId";
+                        using (SqlCommand idCommand = new SqlCommand(query, sqlConnection))
+                        {
+                            idCommand.Parameters.AddWithValue("@FileId", file.Id);                               
+                            using (SqlDataReader idReader = idCommand.ExecuteReader())
+                            {
+                                while (idReader.Read())
+                                {
+                                    ParentID = idReader["ParentID"].ToString();
+                                }
+                            }
+                        }
                     }
                     catch (SqlException ex) { Console.WriteLine(ex.ToString()); }
                     finally { sqlConnection.Close(); }
@@ -787,40 +919,63 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                     {
                         int count;
                         sqlConnection.Open();
-                        count = (int)(new SqlCommand("select COUNT(*) from " + this.tableName + " where ParentID='" + ParentID + "' AND MimeType= 'folder' AND Name <> '" + file.Name + "'", sqlConnection)).ExecuteScalar();
-                        sqlConnection.Close();
+                        string checkQuery = "SELECT COUNT(*) FROM " + this.tableName + " WHERE ParentID = @ParentID AND MimeType = 'folder' AND Name <> @FileName";
+
+                        using (SqlCommand countCommand = new SqlCommand(checkQuery, sqlConnection))
+                        {
+                            countCommand.Parameters.AddWithValue("@ParentID", ParentID);
+                            countCommand.Parameters.AddWithValue("@FileName", file.Name);
+
+                            count = (int)countCommand.ExecuteScalar();
+                        }                        sqlConnection.Close();
                         if (count == 0)
                         {
                             sqlConnection.Open();
-                            SqlCommand updatecommand = new SqlCommand(("update " + this.tableName + " SET HasChild='False' where ItemId='" + ParentID + "'"), sqlConnection);
-                            updatecommand.ExecuteNonQuery();
+                            string updateQuery = "UPDATE " + this.tableName + " SET HasChild = 'False' WHERE ItemId = @ParentID";
+                            using (SqlCommand updateCommand = new SqlCommand(updateQuery, sqlConnection))
+                            {
+                                updateCommand.Parameters.AddWithValue("@ParentID", ParentID);
+                                updateCommand.ExecuteNonQuery();
+                            }
                             sqlConnection.Close();
                         }
                         sqlConnection.Open();
-                        SqlDataReader reader = (new SqlCommand("select * from " + this.tableName + " where ItemID='" + file.Id + "'", sqlConnection)).ExecuteReader();
-                        while (reader.Read())
+                        string readerQuery = "SELECT * FROM " + this.tableName + " WHERE ItemID = @FileId";
+                        using (SqlCommand command = new SqlCommand(readerQuery, sqlConnection))
                         {
-                            deletedData = new FileManagerDirectoryContent
+                            command.Parameters.AddWithValue("@FileId", file.Id);
+
+                            using (SqlDataReader reader = command.ExecuteReader())
                             {
-                                Name = reader["Name"].ToString().Trim(),
-                                Size = (long)reader["Size"],
-                                IsFile = (bool)reader["IsFile"],
-                                DateModified = (DateTime)reader["DateModified"],
-                                DateCreated = (DateTime)reader["DateCreated"],
-                                Type = GetDefaultExtension(reader["MimeType"].ToString()),
-                                HasChild = (bool)reader["HasChild"],
-                                Id = reader["ItemID"].ToString()
-                            };
+                                while (reader.Read())
+                                {
+                                    deletedData = new FileManagerDirectoryContent
+                                    {
+                                        Name = reader["Name"].ToString().Trim(),
+                                        Size = (long)reader["Size"],
+                                        IsFile = (bool)reader["IsFile"],
+                                        DateModified = (DateTime)reader["DateModified"],
+                                        DateCreated = (DateTime)reader["DateCreated"],
+                                        Type = GetDefaultExtension(reader["MimeType"].ToString()),
+                                        HasChild = (bool)reader["HasChild"],
+                                        Id = reader["ItemID"].ToString()
+                                    };
+                                }
+                                reader.Close();
+                            }
                         }
-                        reader.Close();
                     }
                     catch (SqlException ex) { Console.WriteLine(ex.ToString()); }
                     finally { sqlConnection.Close(); }
                     try
                     {
                         sqlConnection.Open();
-                        SqlCommand deleteCommand = new SqlCommand("delete  from " + this.tableName + " where ItemID='" + file.Id + "'", sqlConnection);
-                        deleteCommand.ExecuteNonQuery();
+                        string deleteQuery = "DELETE FROM " + this.tableName + " WHERE ItemID = @FileId";
+                        using (SqlCommand deleteCommand = new SqlCommand(deleteQuery, sqlConnection))
+                        {
+                            deleteCommand.Parameters.AddWithValue("@FileId", file.Id);
+                            deleteCommand.ExecuteNonQuery();
+                        }
                         string absoluteFilePath = Path.Combine(Path.GetTempPath(), file.Name);
                         var tempDirectory = new DirectoryInfo(Path.GetTempPath());
                         foreach (var newFileName in Directory.GetFiles(tempDirectory.ToString()))
@@ -838,16 +993,34 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                     remvoeResponse.Files = newData;
                 }
                 sqlConnection.Open();
-                string removeQuery = "with cte as (select ItemID, Name, ParentID from " + this.tableName + " where ParentID =" + data[0].Id + " union all select p.ItemID, p.Name, p.ParentID from Product p inner join cte on p.ParentID = cte.ItemID) select ItemID from cte;";
-                SqlCommand removeCommand = new SqlCommand(removeQuery, sqlConnection);
-                SqlDataReader removeCommandReader = removeCommand.ExecuteReader();
-                while (removeCommandReader.Read()) { this.deleteFilesId.Add(removeCommandReader["ItemID"].ToString()); }
+                string removeQuery = "WITH cte AS (SELECT ItemID, Name, ParentID FROM " + this.tableName + " WHERE ParentID = @ParentId " +
+                         "UNION ALL SELECT p.ItemID, p.Name, p.ParentID FROM Product p INNER JOIN cte ON p.ParentID = cte.ItemID) SELECT ItemID FROM cte";
+                using (SqlCommand removeCommand = new SqlCommand(removeQuery, sqlConnection))
+                {
+                    removeCommand.Parameters.AddWithValue("@ParentId", data[0].Id);
+
+                    using (SqlDataReader removeCommandReader = removeCommand.ExecuteReader())
+                    {
+                        while (removeCommandReader.Read())
+                        {
+                            this.deleteFilesId.Add(removeCommandReader["ItemID"].ToString());
+                        }
+                    }
+                }
                 sqlConnection.Close();
                 if (this.deleteFilesId.Count > 0)
                 {
                     sqlConnection.Open();
-                    SqlCommand updateTableCommand = new SqlCommand(("delete from " + this.tableName + " where ItemID IN (" + string.Join(", ", this.deleteFilesId.Select(f => "'" + f + "'")) + ")"), sqlConnection);
-                    SqlDataReader getDetailsCommandReader = updateTableCommand.ExecuteReader();
+                    string deleteQuery = "DELETE FROM " + this.tableName + " WHERE ItemID IN (" + string.Join(", ", deleteFilesId.Select((f, index) => "@ItemId" + index)) + ")";
+                    using (SqlCommand deleteCommand = new SqlCommand(deleteQuery, sqlConnection))
+                    {
+                        for (int index = 0; index < deleteFilesId.Count; index++)
+                        {
+                            deleteCommand.Parameters.AddWithValue("@ItemId" + index, deleteFilesId[index]);
+                        }
+
+                        deleteCommand.ExecuteNonQuery();
+                    }
                     sqlConnection.Close();
                 }
                 this.deleteFilesId = null;
@@ -870,7 +1043,8 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
 
             try
             {
-                AccessPermission permission = GetPermission(data[0].Id, data[0].ParentID, data[0].Name, data[0].IsFile, path);
+                string sanitizedName = SanitizeFileName(data[0].Name);
+                AccessPermission permission = GetPermission(data[0].Id, data[0].ParentID, sanitizedName, data[0].IsFile, path);
                 if (permission != null && (!permission.Read || !permission.Upload))
                 {
                      accessMessage = permission.Message;
@@ -1025,7 +1199,8 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
             FileManagerResponse renameResponse = new FileManagerResponse();
             try
             {
-                AccessPermission permission = GetPermission(data[0].Id, data[0].ParentID, data[0].Name, data[0].IsFile, path);
+                string sanitizedName = SanitizeFileName(data[0].Name);
+                AccessPermission permission = GetPermission(data[0].Id, data[0].ParentID, sanitizedName, data[0].IsFile, path);
                 if (permission != null && (!permission.Read || !permission.Write))
                 {
                     accessMessage = permission.Message;
@@ -1037,7 +1212,11 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                 try
                 {
                     sqlConnection.Open();
-                    SqlCommand updatecommand = new SqlCommand(("update " + this.tableName + " set Name='" + newName + "' , DateModified='" + DateTime.Now.ToString() + "' where ItemID ='" + data[0].Id + "'"), sqlConnection);
+                    string updateQuery = "UPDATE " + this.tableName + " SET Name = @NewName, DateModified = @DateModified WHERE ItemID = @ItemID";
+                    SqlCommand updatecommand = new SqlCommand(updateQuery, sqlConnection);
+                    updatecommand.Parameters.AddWithValue("@NewName", newName);
+                    updatecommand.Parameters.AddWithValue("@DateModified", DateTime.Now);
+                    updatecommand.Parameters.AddWithValue("@ItemID", data[0].Id);
                     updatecommand.ExecuteNonQuery();
                     sqlConnection.Close();
                     if (newName.Substring(newName.LastIndexOf(".") + 1) != name.Substring(name.LastIndexOf(".") + 1))
@@ -1045,36 +1224,47 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                         sqlConnection.Open();
                         string fileExtension = Path.GetExtension(newName);
                         string mimeType = "application/unknown";
-                        Microsoft.Win32.RegistryKey regKey = Microsoft.Win32.Registry.ClassesRoot.OpenSubKey(fileExtension);
-                        if (regKey != null && regKey.GetValue("Content Type") != null)
-                            mimeType = regKey.GetValue("Content Type").ToString();
-                        string updateTypeQuery = "update " + this.tableName + " set MimeType='" + mimeType + "' where ItemID ='" + data[0].Id + "'";
-                        SqlCommand updateTypecommand = new SqlCommand(updateTypeQuery, sqlConnection);
-                        updateTypecommand.ExecuteNonQuery();
+                        using (Microsoft.Win32.RegistryKey regKey = Microsoft.Win32.Registry.ClassesRoot.OpenSubKey(fileExtension))
+                        {
+                            if (regKey != null && regKey.GetValue("Content Type") != null)
+                            {
+                                mimeType = regKey.GetValue("Content Type").ToString();
+                            }
+                        }
+                        string updateTypeQuery = "UPDATE " + this.tableName + " SET MimeType = @MimeType WHERE ItemID = @ItemID";
+                        SqlCommand updateTypeCommand = new SqlCommand(updateTypeQuery, sqlConnection);
+                        updateTypeCommand.Parameters.AddWithValue("@MimeType", mimeType);
+                        updateTypeCommand.Parameters.AddWithValue("@ItemID", data[0].Id);
+                        updateTypeCommand.ExecuteNonQuery();
                         sqlConnection.Close();
                     }
                     try
                     {
                         sqlConnection.Open();
-                        SqlDataReader reader = (new SqlCommand(("select * from " + this.tableName + " where ItemID='" + data[0].Id + "'"), sqlConnection)).ExecuteReader();
-                        while (reader.Read())
+                        string selectQuery = "SELECT * FROM " + this.tableName + " WHERE ItemID = @ItemId";
+                        SqlCommand selectCommand = new SqlCommand(selectQuery, sqlConnection);
+                        selectCommand.Parameters.AddWithValue("@ItemId", data[0].Id);
+                        using (SqlDataReader reader = selectCommand.ExecuteReader())
                         {
-                            renameData = new FileManagerDirectoryContent
+                            while (reader.Read())
                             {
-                                Name = reader["Name"].ToString().Trim(),
-                                Id = reader["ItemID"].ToString().Trim(),
-                                Size = (long)reader["Size"],
-                                FilterPath = data[0].FilterPath,
-                                IsFile = (bool)reader["IsFile"],
-                                DateModified = (DateTime)reader["DateModified"],
-                                DateCreated = (DateTime)reader["DateCreated"],
-                                Type = "",
-                                HasChild = (bool)reader["HasChild"]
-                            };
+                                renameData = new FileManagerDirectoryContent
+                                {
+                                    Name = reader["Name"].ToString().Trim(),
+                                    Id = reader["ItemID"].ToString().Trim(),
+                                    Size = (long)reader["Size"],
+                                    FilterPath = data[0].FilterPath,
+                                    IsFile = (bool)reader["IsFile"],
+                                    DateModified = (DateTime)reader["DateModified"],
+                                    DateCreated = (DateTime)reader["DateCreated"],
+                                    Type = "",
+                                    HasChild = (bool)reader["HasChild"]
+                                };
 
+                            }
+                            reader.Close();
+                            renameData.FilterId = GetFilterId(renameData.Id);
                         }
-                        reader.Close();
-                        renameData.FilterId = GetFilterId(renameData.Id);
                     }
                     catch (SqlException ex) { Console.WriteLine(ex.ToString()); }
                     finally { sqlConnection.Close(); }
@@ -1100,24 +1290,68 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
         public string GetFilterPath(string id)
         {
             List<string> parents = new List<string>();
-            string idValue = (new SqlCommand(("select ParentID from " + this.tableName + " where ItemID='" + id + "'"), sqlConnection)).ExecuteScalar().ToString().Trim();
-            string query = "with cte as (select ItemID, Name, ParentID from " + this.tableName + " where ItemID =" + idValue + " union all select p.ItemID, p.Name, p.ParentID from " + this.tableName + " p inner join cte on cte.ParentID = p.ItemID) select Name from cte where ParentID != 0";
-            SqlCommand queryCommand = new SqlCommand(query, sqlConnection);
-            SqlDataReader reader = queryCommand.ExecuteReader();
-            while (reader.Read()) { parents.Add(reader["Name"].ToString().Trim()); }
-            reader.Close();
+            string idValueQuery = "SELECT ParentID FROM " + this.tableName + " WHERE ItemID = @ItemId";
+            SqlCommand idValueCommand = new SqlCommand(idValueQuery, sqlConnection);
+            idValueCommand.Parameters.AddWithValue("@ItemId", id);
+            string idValue = idValueCommand.ExecuteScalar()?.ToString().Trim();
+            if (!string.IsNullOrEmpty(idValue))
+            {
+                string query = @"
+                    WITH cte AS (
+                        SELECT ItemID, Name, ParentID
+                        FROM " + this.tableName + " WHERE ItemID = @IdValue" + @"
+                        UNION ALL
+                        SELECT p.ItemID, p.Name, p.ParentID
+                        FROM " + this.tableName + @" p
+                        INNER JOIN cte ON cte.ParentID = p.ItemID
+                    )
+                    SELECT Name FROM cte WHERE ParentID != 0";
+
+                SqlCommand queryCommand = new SqlCommand(query, sqlConnection);
+                queryCommand.Parameters.AddWithValue("@IdValue", idValue);
+
+                using (SqlDataReader reader = queryCommand.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        parents.Add(reader["Name"].ToString().Trim());
+                    }
+                    reader.Close();
+                }
+            }
             return ("/" + (parents.Count > 0 ? (string.Join("/", parents.ToArray().Reverse()) + "/") : ""));
         }
 
         public string GetFilterId(string id)
         {
             List<string> parents = new List<string>();
-            string idValue = (new SqlCommand(("select ParentID from " + this.tableName + " where ItemID='" + id + "'"), sqlConnection)).ExecuteScalar().ToString().Trim();
-            string query = "with cte as (select ItemID, Name, ParentID from " + this.tableName + " where ItemID =" + idValue + " union all select p.ItemID, p.Name, p.ParentID from " + this.tableName + " p inner join cte on cte.ParentID = p.ItemID) select ItemID from cte";
-            SqlCommand queryCommand = new SqlCommand(query, sqlConnection);
-            SqlDataReader reader = queryCommand.ExecuteReader();
-            while (reader.Read()) { parents.Add(reader["ItemID"].ToString().Trim()); }
-            reader.Close();
+            string idValueQuery = "SELECT ParentID FROM " + this.tableName + " WHERE ItemID = @ItemId";
+            SqlCommand idValueCommand = new SqlCommand(idValueQuery, sqlConnection);
+            idValueCommand.Parameters.AddWithValue("@ItemId", id);
+            string idValue = idValueCommand.ExecuteScalar()?.ToString().Trim();
+            if (!string.IsNullOrEmpty(idValue))
+            {
+                string query = @"
+                    WITH cte AS (
+                        SELECT ItemID, Name, ParentID
+                        FROM " + this.tableName + " WHERE ItemID = @IdValue" + @"
+                        UNION ALL
+                        SELECT p.ItemID, p.Name, p.ParentID
+                        FROM " + this.tableName + @" p
+                        INNER JOIN cte ON cte.ParentID = p.ItemID
+                    )
+                    SELECT ItemID FROM cte";
+                SqlCommand queryCommand = new SqlCommand(query, sqlConnection);
+                queryCommand.Parameters.AddWithValue("@IdValue", idValue);
+                using (SqlDataReader reader = queryCommand.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        parents.Add(reader["ItemID"].ToString().Trim());
+                    }
+                    reader.Close();
+                }
+            }
             return (string.Join("/", parents.ToArray().Reverse()) + "/");
         }
         // Search for file(s) or folder(s)
@@ -1133,7 +1367,8 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                 FileManagerDirectoryContent searchData;
                 FileManagerDirectoryContent cwd = data[0];
                 sqlConnection.Close();
-                AccessPermission permission = GetPermission(data[0].Id, data[0].ParentID, cwd.Name, cwd.IsFile, path);
+                string sanitizedName = SanitizeFileName(cwd.Name);
+                AccessPermission permission = GetPermission(data[0].Id, data[0].ParentID, sanitizedName, cwd.IsFile, path);
                 cwd.Permission = permission;
                 if (cwd.Permission != null && !cwd.Permission.Read)
                 {
@@ -1144,34 +1379,61 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                 List<FileManagerDirectoryContent> foundFiles = new List<FileManagerDirectoryContent>();
                 List<string> availableFiles = new List<string>();
                 sqlConnection.Open();
-                string removeQuery = "with cte as (select ItemID, Name, ParentID from " + this.tableName + " where ParentID =" + data[0].Id + " union all select p.ItemID, p.Name, p.ParentID from Product p inner join cte on p.ParentID = cte.ItemID) select ItemID from cte;";
+                string removeQuery = @"
+                    WITH cte AS (
+                        SELECT ItemID, Name, ParentID
+                        FROM " + this.tableName + " WHERE ParentID = @ParentId" + @"
+                        UNION ALL
+                        SELECT p.ItemID, p.Name, p.ParentID
+                        FROM " + this.tableName + @" p
+                        INNER JOIN cte ON p.ParentID = cte.ItemID
+                    )
+                    SELECT ItemID FROM cte";
                 SqlCommand childCommand = new SqlCommand(removeQuery, sqlConnection);
-                SqlDataReader childCommandReader = childCommand.ExecuteReader();
-                while (childCommandReader.Read()) { availableFiles.Add(childCommandReader["ItemID"].ToString()); }
+                childCommand.Parameters.AddWithValue("@ParentId", data[0].Id);
+                using (SqlDataReader childCommandReader = childCommand.ExecuteReader())
+                {
+                    while (childCommandReader.Read())
+                    {
+                        availableFiles.Add(childCommandReader["ItemID"].ToString());
+                    }
+                }
                 sqlConnection.Close();
                 if (availableFiles.Count > 0)
                 {
                     sqlConnection.Open();
-                    SqlDataReader reader = (new SqlCommand("select * from " + this.tableName + " where Name like '" + searchString.Replace("*", "%") + "' AND ItemID IN(" + string.Join(", ", availableFiles.Select(f => "'" + f + "'")) + ")", sqlConnection)).ExecuteReader();
-                    while (reader.Read())
+                    string query = @"
+                    SELECT * 
+                    FROM " + this.tableName + @"
+                    WHERE Name LIKE @SearchString AND ItemID IN (" + string.Join(",", availableFiles.Select((f, index) => $"@FileId{index}")) + ")";
+                    SqlCommand command = new SqlCommand(query, sqlConnection);
+                    command.Parameters.AddWithValue("@SearchString", searchString.Replace("*", "%"));
+                    for (int i = 0; i < availableFiles.Count; i++)
                     {
-                        searchData = new FileManagerDirectoryContent
-                        {
-                            Name = reader["Name"].ToString().Trim(),
-                            Size = (long)reader["Size"],
-                            IsFile = (bool)reader["IsFile"],
-                            DateModified = (DateTime)reader["DateModified"],
-                            DateCreated = (DateTime)reader["DateCreated"],
-                            Type = GetDefaultExtension(reader["MimeType"].ToString()),
-                            HasChild = (bool)reader["HasChild"],
-                            Id = reader["ItemId"].ToString().Trim(),
-                            ParentID = reader["ParentID"].ToString().Trim(),
-                        };
-                        AccessPermission searchPermission = GetPermission(searchData.Id, searchData.ParentID, searchData.Name, searchData.IsFile, path);
-                        searchData.Permission = searchPermission;
-                        if (searchData.Name != "Products") foundFiles.Add(searchData);
+                        command.Parameters.AddWithValue($"@FileId{i}", availableFiles[i]);
                     }
-                    reader.Close();
+                    using (SqlDataReader reader = command.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            searchData = new FileManagerDirectoryContent
+                            {
+                                Name = reader["Name"].ToString().Trim(),
+                                Size = (long)reader["Size"],
+                                IsFile = (bool)reader["IsFile"],
+                                DateModified = (DateTime)reader["DateModified"],
+                                DateCreated = (DateTime)reader["DateCreated"],
+                                Type = GetDefaultExtension(reader["MimeType"].ToString()),
+                                HasChild = (bool)reader["HasChild"],
+                                Id = reader["ItemId"].ToString().Trim(),
+                                ParentID = reader["ParentID"].ToString().Trim(),
+                            };
+                            AccessPermission searchPermission = GetPermission(searchData.Id, searchData.ParentID, SanitizeFileName(searchData.Name), searchData.IsFile, path);
+                            searchData.Permission = searchPermission;
+                            if (searchData.Name != "Products") foundFiles.Add(searchData);
+                        }
+                        reader.Close();
+                    }   
                     for (int i = foundFiles.Count - 1; i >= 0; i--)
                     {
                         foundFiles[i].FilterPath = GetFilterPath(foundFiles[i].Id);
@@ -1203,7 +1465,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
             bool hasPermission = true;
             for (int i = 0; i <= parentPath.Length - 3; i++)
             {
-                AccessPermission pathPermission = GetPermission(fileDetails.ParentID, parentPath[i], fileDetails.Name, false, fileDetails.FilterId);
+                AccessPermission pathPermission = GetPermission(fileDetails.ParentID, parentPath[i], SanitizeFileName(fileDetails.Name), false, fileDetails.FilterId);
                 if (pathPermission == null)
                 {
                     break;
@@ -1218,21 +1480,42 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
         }
 
             // Copies the selected folder
-            public void CopyFolderFiles(string[] fileId, string[] newTargetId, SqlConnection sqlConnection)
+        public void CopyFolderFiles(string[] fileId, string[] newTargetId, SqlConnection sqlConnection)
         {
             List<string> fromFoldersId = new List<string>();
             List<string> toFoldersId = new List<string>();
             for (var i = 0; i < fileId.Length; i++)
             {
-                string copyQuery = "insert into " + tableName + " (Name, ParentID, Size, isFile, MimeType, Content, DateModified, DateCreated, HasChild, IsRoot, Type, FilterPath) select Name," + newTargetId[i] + " , Size, isFile, MimeType, Content, DateModified, DateCreated, HasChild, IsRoot, Type, FilterPath from " + tableName + " where ParentID = " + fileId[i];
+                string copyQuery = @"
+                INSERT INTO " + tableName + @" (Name, ParentID, Size, isFile, MimeType, Content, DateModified, DateCreated, HasChild, IsRoot, Type, FilterPath)
+                SELECT Name, @NewTargetId, Size, isFile, MimeType, Content, DateModified, DateCreated, HasChild, IsRoot, Type, FilterPath
+                FROM " + tableName + @" WHERE ParentID = @FileId";
                 SqlCommand copyQuerycommand = new SqlCommand(copyQuery, sqlConnection);
+                copyQuerycommand.Parameters.AddWithValue("@NewTargetId", newTargetId[i]);
+                copyQuerycommand.Parameters.AddWithValue("@FileId", fileId[i]);
                 copyQuerycommand.ExecuteNonQuery();
-                SqlDataReader checkingQuerycommandReader = (new SqlCommand(("Select * from " + tableName + " where ParentID =" + newTargetId[i] + " and MimeType = 'folder'"), sqlConnection)).ExecuteReader();
-                while (checkingQuerycommandReader.Read()) { toFoldersId.Add(checkingQuerycommandReader["ItemID"].ToString().Trim()); }
-                checkingQuerycommandReader.Close();
-                SqlDataReader tocheckingQuerycommandReader = (new SqlCommand(("Select * from " + tableName + " where ParentID =" + fileId[i] + " and MimeType = 'folder'"), sqlConnection)).ExecuteReader();
-                while (tocheckingQuerycommandReader.Read()) { fromFoldersId.Add(tocheckingQuerycommandReader["ItemID"].ToString().Trim()); }
-                tocheckingQuerycommandReader.Close();
+                string checkingQuery = "SELECT ItemID FROM " + tableName + " WHERE ParentID = @NewTargetId AND MimeType = 'folder'";
+                SqlCommand checkingQuerycommand = new SqlCommand(checkingQuery, sqlConnection);
+                checkingQuerycommand.Parameters.AddWithValue("@NewTargetId", newTargetId[i]);
+                using (SqlDataReader checkingQuerycommandReader = checkingQuerycommand.ExecuteReader())
+                {
+                    while (checkingQuerycommandReader.Read())
+                    {
+                        toFoldersId.Add(checkingQuerycommandReader["ItemID"].ToString().Trim());
+                    }
+                    checkingQuerycommandReader.Close();
+                }
+                string toCheckingQuery = "SELECT ItemID FROM " + tableName + " WHERE ParentID = @FileId AND MimeType = 'folder'";
+                SqlCommand toCheckingQuerycommand = new SqlCommand(toCheckingQuery, sqlConnection);
+                toCheckingQuerycommand.Parameters.AddWithValue("@FileId", fileId[i]);
+                using (SqlDataReader toCheckingQuerycommandReader = toCheckingQuerycommand.ExecuteReader())
+                {
+                    while (toCheckingQuerycommandReader.Read())
+                    {
+                        fromFoldersId.Add(toCheckingQuerycommandReader["ItemID"].ToString().Trim());
+                    }
+                    toCheckingQuerycommandReader.Close();
+                }
             }
             if (fromFoldersId.Count > 0)
                 CopyFolderFiles(fromFoldersId.ToArray(), toFoldersId.ToArray(), sqlConnection);
@@ -1254,12 +1537,29 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
             try
             {
                 sqlConnection.Open();
-                string checkingQuery = "with cte as (select ItemID, Name, ParentID from " + this.tableName + " where ParentID =" + data[0].Id + " union all select p.ItemID, p.Name, p.ParentID from Product p inner join cte on p.ParentID = cte.ItemID) select ItemID from cte;";
-                SqlDataReader copyCheckCommandReader = (new SqlCommand(checkingQuery, sqlConnection)).ExecuteReader();
-                while (copyCheckCommandReader.Read()) { checkingId.Add(copyCheckCommandReader["ItemID"].ToString()); }
+                string checkingQuery = @"
+                    WITH cte AS (
+                        SELECT ItemID, Name, ParentID
+                        FROM " + this.tableName + " WHERE ParentID = @ParentId" + @"
+                        UNION ALL
+                        SELECT p.ItemID, p.Name, p.ParentID
+                        FROM " + this.tableName + @" p
+                        INNER JOIN cte ON p.ParentID = cte.ItemID
+                    )
+                    SELECT ItemID FROM cte";
+                SqlCommand copyCheckCommand = new SqlCommand(checkingQuery, sqlConnection);
+                copyCheckCommand.Parameters.AddWithValue("@ParentId", data[0].Id);
+                using (SqlDataReader copyCheckCommandReader = copyCheckCommand.ExecuteReader())
+                {
+                    while (copyCheckCommandReader.Read())
+                    {
+                        checkingId.Add(copyCheckCommandReader["ItemID"].ToString());
+                    }
+                }
                 sqlConnection.Close();
 
-                AccessPermission permission = GetPermission(data[0].Id, data[0].ParentID, data[0].Name, data[0].IsFile, path);
+                string sanitizedName = SanitizeFileName(data[0].Name);
+                AccessPermission permission = GetPermission(data[0].Id, data[0].ParentID, sanitizedName, data[0].IsFile, path);
                 if (permission != null && (!permission.Read || !permission.WriteContents))
                 {
                     accessMessage = permission.Message;
@@ -1281,13 +1581,22 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                         List<string> foldersId = new List<String>();
                         List<string> lastInsertedItemId = new List<String>();
                         string lastId = "";
-                        string copyQuery = "insert into " + tableName + " (Name, ParentID, Size, isFile, MimeType, Content, DateModified, DateCreated, HasChild, IsRoot, Type, FilterPath) select Name," + targetData.Id + " , Size, isFile, MimeType, Content, DateModified, DateCreated, HasChild, IsRoot, Type, FilterPath from " + tableName + " where ItemID = " + item.Id;
+                        string copyQuery = @"
+                            INSERT INTO " + tableName + @" (Name, ParentID, Size, isFile, MimeType, Content, DateModified, DateCreated, HasChild, IsRoot, Type, FilterPath)
+                            SELECT Name, @TargetId, Size, isFile, MimeType, Content, DateModified, DateCreated, HasChild, IsRoot, Type, FilterPath
+                            FROM " + tableName + @" WHERE ItemID = @ItemId";
                         SqlCommand copyQuerycommand = new SqlCommand(copyQuery, sqlConnection);
+                        copyQuerycommand.Parameters.AddWithValue("@TargetId", targetData.Id);
+                        copyQuerycommand.Parameters.AddWithValue("@ItemId", item.Id);
                         copyQuerycommand.ExecuteNonQuery();
                         lastId = GetLastInsertedValue();
                         sqlConnection.Close();
                         sqlConnection.Open();
-                        SqlDataReader reader = (new SqlCommand(("Select * from " + this.tableName + " where ItemID=" + lastId), sqlConnection)).ExecuteReader();
+                        string query = "SELECT * FROM " + this.tableName + " WHERE ItemID = @LastId";
+                        SqlCommand command = new SqlCommand(query, sqlConnection);
+                        command.Parameters.AddWithValue("@LastId", lastId);
+
+                        SqlDataReader reader = command.ExecuteReader();
                         while (reader.Read())
                         {
                             var copyFiles = new FileManagerDirectoryContent
@@ -1357,12 +1666,28 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
             {
                 List<string> checkingId = new List<string>();
                 sqlConnection.Open();
-                string checkingQuery = "with cte as (select ItemID, Name, ParentID from " + this.tableName + " where ParentID =" + data[0].Id + " union all select p.ItemID, p.Name, p.ParentID from Product p inner join cte on p.ParentID = cte.ItemID) select ItemID from cte;";
-                SqlDataReader moveCheckCommandReader = (new SqlCommand(checkingQuery, sqlConnection)).ExecuteReader();
-                while (moveCheckCommandReader.Read()) { checkingId.Add(moveCheckCommandReader["ItemID"].ToString()); }
+                string checkingQuery = @"
+                        WITH cte AS (
+                            SELECT ItemID, Name, ParentID
+                            FROM " + this.tableName + " WHERE ParentID = @ParentId" + @"
+                            UNION ALL
+                            SELECT p.ItemID, p.Name, p.ParentID
+                            FROM " + this.tableName + @" p
+                            INNER JOIN cte ON p.ParentID = cte.ItemID
+                        )
+                        SELECT ItemID FROM cte";
+                    SqlCommand moveCheckCommand = new SqlCommand(checkingQuery, sqlConnection);
+                    moveCheckCommand.Parameters.AddWithValue("@ParentId", data[0].Id);
+                    using (SqlDataReader moveCheckCommandReader = moveCheckCommand.ExecuteReader())
+                    {
+                        while (moveCheckCommandReader.Read())
+                        {
+                            checkingId.Add(moveCheckCommandReader["ItemID"].ToString());
+                        }
+                    }
                 sqlConnection.Close();
-
-                AccessPermission permission = GetPermission(data[0].Id, data[0].ParentID, data[0].Name, data[0].IsFile, path);
+                string sanitizedName = SanitizeFileName(data[0].Name);
+                AccessPermission permission = GetPermission(data[0].Id, data[0].ParentID, sanitizedName, data[0].IsFile, path);
                 if (permission != null && (!permission.Read || !permission.WriteContents))
                 {
                     accessMessage = permission.Message;
@@ -1382,13 +1707,16 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                     sqlConnection.Open();
                     try
                     {
-                        string moveQuery = "update " + this.tableName + " SET ParentID='" + targetData.Id + "' where ItemID='" + item.Id + "'";
+                        string moveQuery = "UPDATE " + tableName + " SET ParentID = @TargetId WHERE ItemID = @ItemId";
                         SqlCommand moveQuerycommand = new SqlCommand(moveQuery, sqlConnection);
+                        moveQuerycommand.Parameters.AddWithValue("@TargetId", targetData.Id);
+                        moveQuerycommand.Parameters.AddWithValue("@ItemId", item.Id);
                         moveQuerycommand.ExecuteNonQuery();
                         sqlConnection.Close();
                         sqlConnection.Open();
-                        string detailsQuery = "Select * from " + this.tableName + " where ItemID=" + item.Id;
+                        string detailsQuery = "SELECT * FROM " + tableName + " WHERE ItemID = @ItemId";
                         SqlCommand detailQuerycommand = new SqlCommand(detailsQuery, sqlConnection);
+                        detailQuerycommand.Parameters.AddWithValue("@ItemId", item.Id);
                         SqlDataReader reader = detailQuerycommand.ExecuteReader();
                         while (reader.Read())
                         {
@@ -1449,7 +1777,9 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
         {
             sqlConnection = setSQLDBConnection();
             sqlConnection.Open();
-            SqlCommand Checkcommand = new SqlCommand("select COUNT(Name) from " + this.tableName + " where ParentID='" + parentId + "' AND IsFile = 'true' AND Name = '" + name.Trim() + "'", sqlConnection);
+            SqlCommand Checkcommand = new SqlCommand("SELECT COUNT(Name) FROM " + tableName + " WHERE ParentID=@ParentID AND IsFile='true' AND Name=@Name", sqlConnection);
+            Checkcommand.Parameters.AddWithValue("@ParentID", parentId);
+            Checkcommand.Parameters.AddWithValue("@Name", name.Trim());
             int count = (int)Checkcommand.ExecuteScalar();
             sqlConnection.Close();
             return count != 0;
