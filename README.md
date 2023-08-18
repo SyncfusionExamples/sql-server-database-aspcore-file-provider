@@ -1,4 +1,4 @@
-# SQL server database file provider for Essential JS2 File Manager
+# SQL server database file provider for Essential JS2 File Manager 
 
 This repository contains the SQL server database file provider in ASP.NET Core for the Syncfusion File Manager component.
 
