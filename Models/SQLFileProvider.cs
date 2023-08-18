@@ -171,7 +171,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                                 ParentID = reader["ParentID"].ToString(),
                             };
 
-                            AccessPermission permission = GetPermission(childFiles.Id, childFiles.ParentID, childFiles.Name, childFiles.IsFile, path);
+                            AccessPermission permission = GetPermission(childFiles.Id, childFiles.ParentID, SanitizeFileName(childFiles.Name), childFiles.IsFile, path);
                             childFiles.Permission = permission;
                             files.Add(childFiles);
                         }
@@ -472,7 +472,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                                     HasChild = (bool)reader["HasChild"],
                                     ParentID = reader["ParentID"].ToString().Trim(),
                                 };
-                                AccessPermission permission = GetPermission(createData.Id, createData.ParentID, createData.Name, createData.IsFile, path);
+                                AccessPermission permission = GetPermission(createData.Id, createData.ParentID, SanitizeFileName(createData.Name), createData.IsFile, path);
                                 createData.Permission = permission;
                             }
                             reader.Close();
@@ -1428,7 +1428,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                                 Id = reader["ItemId"].ToString().Trim(),
                                 ParentID = reader["ParentID"].ToString().Trim(),
                             };
-                            AccessPermission searchPermission = GetPermission(searchData.Id, searchData.ParentID, searchData.Name, searchData.IsFile, path);
+                            AccessPermission searchPermission = GetPermission(searchData.Id, searchData.ParentID, SanitizeFileName(searchData.Name), searchData.IsFile, path);
                             searchData.Permission = searchPermission;
                             if (searchData.Name != "Products") foundFiles.Add(searchData);
                         }
@@ -1465,7 +1465,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
             bool hasPermission = true;
             for (int i = 0; i <= parentPath.Length - 3; i++)
             {
-                AccessPermission pathPermission = GetPermission(fileDetails.ParentID, parentPath[i], fileDetails.Name, false, fileDetails.FilterId);
+                AccessPermission pathPermission = GetPermission(fileDetails.ParentID, parentPath[i], SanitizeFileName(fileDetails.Name), false, fileDetails.FilterId);
                 if (pathPermission == null)
                 {
                     break;
