@@ -139,8 +139,8 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                                     HasChild = (bool)reader["HasChild"],
                                     ParentID = reader["ParentID"].ToString(),
                                 };
-                                //string sanitizedName = SanitizeFileName(cwd.Name);
-                                AccessPermission permission = GetPermission(cwd.Id, cwd.ParentID, cwd.Name, cwd.IsFile, path);
+                                string sanitizedName = SanitizeFileName(cwd.Name);
+                                AccessPermission permission = GetPermission(cwd.Id, cwd.ParentID, sanitizedName, cwd.IsFile, path);
                                 cwd.Permission = permission;
                             }
                         }
@@ -210,7 +210,6 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
 
         protected AccessPermission GetPermission(string id,  string parentId, string name, bool isFile, string path)
         {
-            string sanitizedName = SanitizeFileName(name);
             AccessPermission FilePermission = new AccessPermission();
             if (isFile)
             {
@@ -218,7 +217,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                 {
                     return null;
                 }
-                string nameExtension = Path.GetExtension(sanitizedName).ToLower();
+                string nameExtension = Path.GetExtension(name).ToLower();
                 AccessRule accessFileRule = new AccessRule();
                 foreach (AccessRule fileRule in AccessDetails.AccessRules)
                 {
@@ -226,14 +225,14 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                     {
                         if (id == fileRule.Id)
                         {
-                            FilePermission = UpdateFileRules(FilePermission, fileRule, sanitizedName);
+                            FilePermission = UpdateFileRules(FilePermission, fileRule, name);
                         }
                         else if (fileRule.Id.IndexOf("*.*") > -1)
                         {
                             string parentPath = fileRule.Id.Substring(0, fileRule.Id.IndexOf("*.*"));
                             if (parentPath == "")
                             {
-                                FilePermission = UpdateFileRules(FilePermission, fileRule, sanitizedName);
+                                FilePermission = UpdateFileRules(FilePermission, fileRule, name);
                             }
                             else
                             {
@@ -242,7 +241,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                                 if (idValue == parentId || isAccessId)
                                 {
                                     accessFileRule = UpdateFilePermission(fileRule, parentPath, id);
-                                    FilePermission = UpdateFileRules(FilePermission, accessFileRule, sanitizedName);
+                                    FilePermission = UpdateFileRules(FilePermission, accessFileRule, name);
                                 }
                             }
                         }
@@ -254,7 +253,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                             {
                                 if (pathExtension == nameExtension)
                                 {
-                                    FilePermission = UpdateFileRules(FilePermission, fileRule, sanitizedName);
+                                    FilePermission = UpdateFileRules(FilePermission, fileRule, name);
                                 }
                             }
                             else
@@ -264,7 +263,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                                 if ((idValue == parentId || isAccessId) && pathExtension == nameExtension)
                                 {
                                     accessFileRule = UpdateFilePermission(fileRule, parentPath, id);
-                                    FilePermission = UpdateFileRules(FilePermission, accessFileRule, sanitizedName);
+                                    FilePermission = UpdateFileRules(FilePermission, accessFileRule, name);
                                 }
                             }
                         }
@@ -286,14 +285,14 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                     {
                         if (id == folderRule.Id)
                         {
-                            FilePermission = UpdateFolderRules(FilePermission, folderRule, sanitizedName);
+                            FilePermission = UpdateFolderRules(FilePermission, folderRule, name);
                         }
                         else if (folderRule.Id.IndexOf("*") > -1)
                         {
                             string parentPath = folderRule.Id.Substring(0, folderRule.Id.IndexOf("*"));
                             if (parentPath == "")
                             {
-                                FilePermission = UpdateFolderRules(FilePermission, folderRule, sanitizedName);
+                                FilePermission = UpdateFolderRules(FilePermission, folderRule, name);
                             }
                             else
                             {
@@ -301,7 +300,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                                 if (idValue == parentId) 
                                 {
                                     accessFolderRule = UpdateFolderPermission(folderRule, parentPath, id);
-                                    FilePermission = UpdateFolderRules(FilePermission, accessFolderRule, sanitizedName);
+                                    FilePermission = UpdateFolderRules(FilePermission, accessFolderRule, name);
                                 }
                             }
                         }
@@ -312,7 +311,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                             if (id == idValue || parentId == idValue || isAccessId)
                             {
                                 accessFolderRule = UpdateFolderPermission(folderRule, folderRule.Id, id);
-                                FilePermission = UpdateFolderRules(FilePermission, accessFolderRule, sanitizedName);
+                                FilePermission = UpdateFolderRules(FilePermission, accessFolderRule, name);
                             }
                         }
                     }
@@ -382,8 +381,8 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
             {
                 FileManagerDirectoryContent createData = new FileManagerDirectoryContent();
                 // Validate and sanitize the Name property
-                //string sanitizedName = SanitizeFileName(data[0].Name);
-                AccessPermission createPermission = GetPermission(data[0].Id, data[0].ParentID, data[0].Name, data[0].IsFile, path);
+                string sanitizedName = SanitizeFileName(data[0].Name);
+                AccessPermission createPermission = GetPermission(data[0].Id, data[0].ParentID, sanitizedName, data[0].IsFile, path);
                 if (createPermission != null && (!createPermission.Read || !createPermission.WriteContents))
                 {
                     accessMessage = createPermission.Message;                       
@@ -509,8 +508,8 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                     foreach (FileManagerDirectoryContent item in data)
                     {
                         bool isFile = item.IsFile;
-                        //string sanitizedName = SanitizeFileName(item.Name);
-                        AccessPermission permission = GetPermission(item.Id, item.ParentID, item.Name, isFile, path);
+                        string sanitizedName = SanitizeFileName(item.Name);
+                        AccessPermission permission = GetPermission(item.Id, item.ParentID, sanitizedName, isFile, path);
                         if (permission != null && (!permission.Read || !permission.Download))
                         {
                             throw new UnauthorizedAccessException("'" + item.Name + "' is not accessible. Access is denied.");
@@ -778,8 +777,8 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                                     };
                                     detailsID = reader["ItemID"].ToString().Trim();
                                     detailsParentId = reader["ParentID"].ToString().Trim();
-                                    //string sanitizedName = SanitizeFileName(detailFiles.Name);
-                                    AccessPermission permission = GetPermission(detailsID, detailsParentId, detailFiles.Name, detailFiles.IsFile, path);
+                                    string sanitizedName = SanitizeFileName(detailFiles.Name);
+                                    AccessPermission permission = GetPermission(detailsID, detailsParentId, sanitizedName, detailFiles.IsFile, path);
                                     detailFiles.Permission = permission;
                                 }
                                 reader.Close();
@@ -891,8 +890,8 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                 sqlConnection = setSQLDBConnection();
                 foreach (FileManagerDirectoryContent file in data)
                 {
-                    //string sanitizedName = SanitizeFileName(file.Name);
-                    AccessPermission permission = GetPermission(file.Id, file.ParentID, file.Name, file.IsFile, path);
+                    string sanitizedName = SanitizeFileName(file.Name);
+                    AccessPermission permission = GetPermission(file.Id, file.ParentID, sanitizedName, file.IsFile, path);
                     if (permission != null && (!permission.Read || !permission.Write))
                     {
                         accessMessage = permission.Message;
@@ -1044,8 +1043,8 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
 
             try
             {
-                //string sanitizedName = SanitizeFileName(data[0].Name);
-                AccessPermission permission = GetPermission(data[0].Id, data[0].ParentID, data[0].Name, data[0].IsFile, path);
+                string sanitizedName = SanitizeFileName(data[0].Name);
+                AccessPermission permission = GetPermission(data[0].Id, data[0].ParentID, sanitizedName, data[0].IsFile, path);
                 if (permission != null && (!permission.Read || !permission.Upload))
                 {
                      accessMessage = permission.Message;
@@ -1200,8 +1199,8 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
             FileManagerResponse renameResponse = new FileManagerResponse();
             try
             {
-                //string sanitizedName = SanitizeFileName(data[0].Name);
-                AccessPermission permission = GetPermission(data[0].Id, data[0].ParentID, data[0].Name, data[0].IsFile, path);
+                string sanitizedName = SanitizeFileName(data[0].Name);
+                AccessPermission permission = GetPermission(data[0].Id, data[0].ParentID, sanitizedName, data[0].IsFile, path);
                 if (permission != null && (!permission.Read || !permission.Write))
                 {
                     accessMessage = permission.Message;
@@ -1368,8 +1367,8 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                 FileManagerDirectoryContent searchData;
                 FileManagerDirectoryContent cwd = data[0];
                 sqlConnection.Close();
-                //string sanitizedName = SanitizeFileName(cwd.Name);
-                AccessPermission permission = GetPermission(data[0].Id, data[0].ParentID, cwd.Name, cwd.IsFile, path);
+                string sanitizedName = SanitizeFileName(cwd.Name);
+                AccessPermission permission = GetPermission(data[0].Id, data[0].ParentID, sanitizedName, cwd.IsFile, path);
                 cwd.Permission = permission;
                 if (cwd.Permission != null && !cwd.Permission.Read)
                 {
@@ -1559,8 +1558,8 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                 }
                 sqlConnection.Close();
 
-                //string sanitizedName = SanitizeFileName(data[0].Name);
-                AccessPermission permission = GetPermission(data[0].Id, data[0].ParentID, data[0].Name, data[0].IsFile, path);
+                string sanitizedName = SanitizeFileName(data[0].Name);
+                AccessPermission permission = GetPermission(data[0].Id, data[0].ParentID, sanitizedName, data[0].IsFile, path);
                 if (permission != null && (!permission.Read || !permission.WriteContents))
                 {
                     accessMessage = permission.Message;
@@ -1687,8 +1686,8 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                         }
                     }
                 sqlConnection.Close();
-                //string sanitizedName = SanitizeFileName(data[0].Name);
-                AccessPermission permission = GetPermission(data[0].Id, data[0].ParentID, data[0].Name, data[0].IsFile, path);
+                string sanitizedName = SanitizeFileName(data[0].Name);
+                AccessPermission permission = GetPermission(data[0].Id, data[0].ParentID, sanitizedName, data[0].IsFile, path);
                 if (permission != null && (!permission.Read || !permission.WriteContents))
                 {
                     accessMessage = permission.Message;
