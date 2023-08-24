@@ -2,6 +2,9 @@
 
 This repository contains the SQL server database file provider in ASP.NET Core for the Syncfusion File Manager component.
 
+To know more about SQL server database file system provider for File Manager, please refer our documentation [here]
+(https://ej2.syncfusion.com/aspnetcore/documentation/file-manager/file-system-provider#sql-database-file-system-provider).
+
 ## Key Features
 
 The SQL FILESTREAM feature provides efficient storage, management, and streaming of unstructured data stored as files on the file system.
