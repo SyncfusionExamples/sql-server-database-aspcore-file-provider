@@ -25,6 +25,8 @@ The following actions can be performed with the SQL server database file provide
 
 ## Prerequisites
 
+* Visual Studio 2022
+
 Make the SQL server connection with SQL database file ([App_Data/FileManager.mdf](https://github.com/SyncfusionExamples/sql-server-database-aspcore-file-provider/tree/master/App_Data)) and specify the connection string in "Web.config" file as specified in below code example.
 
 ```
@@ -53,46 +55,12 @@ To configure the SQL server database connection use the `SetSQLConnection` metho
 
 ```
 
-## How to run this application?
+## How to run the project
 
-To run this application, clone the [`sql-server-database-aspcore-file-provider `](https://github.com/SyncfusionExamples/sql-server-database-aspcore-file-provider ) repository and then navigate to its appropriate path where it has been located in your system.
-
-To do so, open the command prompt and run the below commands one after the other.
-
-```
-
-git clone https://github.com/SyncfusionExamples/sql-server-database-aspcore-file-provider   FileManagerSQLService
-cd FileManagerSQLService
-
-```
-
-## Restore the NuGet package and build the application
-
-To restore the NuGet package, run the following command in root folder of the application.
-
-```
-dotnet restore
-```
-
-To build the application, run the following command.
-
-```
-dotnet build
-```
-
-## Running application
-
-After successful compilation, run the following command to run the application.
-
-```
-dotnet run
-```
-
-Now, the project will be hosted in http://localhost. To ensure the SQL server database file provider, map the following URL in your browser.
-
-```
-http://localhost:<port-number>/api/test
-```
+* Checkout this project to a location in your disk.
+* Open the solution file using Visual Studio 2022.
+* Restore the NuGet packages by rebuilding the solution.
+* Run the project.
 
 ## File Manager AjaxSettings
 
@@ -164,4 +132,4 @@ Check the license detail [here](https://github.com/syncfusion/ej2-javascript-ui-
 
 Check the changelog [here](https://github.com/syncfusion/ej2-javascript-ui-controls/blob/master/controls/filemanager/CHANGELOG.md)
 
-Copyright 2020 Syncfusion, Inc. All Rights Reserved. The Syncfusion Essential Studio license and copyright applies to this distribution.
+Copyright 2022 Syncfusion, Inc. All Rights Reserved. The Syncfusion Essential Studio license and copyright applies to this distribution.
