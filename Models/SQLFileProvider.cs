@@ -690,12 +690,12 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
             if (this.checkedIDs.Count > 0)
             {
                 sqlConnection.Open();
-                string query = "SELECT Size FROM " + this.tableName + " WHERE ItemID IN (" + string.Join(", ", this.checkedIDs.Select(f => "@" + f)) + ")";
+                string query = "SELECT Size FROM " + this.tableName + " WHERE ItemID IN (" + string.Join(", ", this.checkedIDs.Select((_, i) => $"@param{i}")) + ")";
                 using (SqlCommand getDetailsCommand = new SqlCommand(query, sqlConnection))
                 {
-                    foreach (var id in this.checkedIDs)
+                    for (int i = 0; i < this.checkedIDs.Count; i++)
                     {
-                        getDetailsCommand.Parameters.AddWithValue("@" + id, id);
+                        getDetailsCommand.Parameters.AddWithValue($"@param{i}", this.checkedIDs[i]);
                     }
                     using (SqlDataReader getDetailsCommandReader = getDetailsCommand.ExecuteReader())
                     {
