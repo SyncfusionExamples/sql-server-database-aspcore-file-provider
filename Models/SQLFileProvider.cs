@@ -126,6 +126,11 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                             SqlDataReader reader = command.ExecuteReader();
                             while (reader.Read())
                             {
+                                bool hasChild = false;
+                                if (!(bool)reader["IsFile"]) // Only check for directories
+                                {
+                                    hasChild = CheckIfHasChild(reader["ItemID"].ToString());
+                                }
                                 cwd = new FileManagerDirectoryContent
                                 {
                                     Name = reader["Name"].ToString().Trim(),
@@ -136,7 +141,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                                     DateCreated = (DateTime)reader["DateCreated"],
                                     Type = GetDefaultExtension(reader["MimeType"].ToString()),
                                     Id = reader["ItemID"].ToString(),
-                                    HasChild = (bool)reader["HasChild"],
+                                    HasChild = hasChild,
                                     ParentID = reader["ParentID"].ToString(),
                                 };
                                 string sanitizedName = SanitizeFileName(cwd.Name);
@@ -158,6 +163,11 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                         SqlDataReader reader = command.ExecuteReader();
                         while (reader.Read())
                         {
+                            bool hasChild = false;
+                            if (!(bool)reader["IsFile"]) // Only check for directories
+                            {
+                                hasChild = CheckIfHasChild(reader["ItemID"].ToString());
+                            }
                             var childFiles = new FileManagerDirectoryContent
                             {
                                 Name = reader["Name"].ToString().Trim(),
@@ -165,7 +175,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                                 IsFile = (bool)reader["IsFile"],
                                 DateModified = (DateTime)reader["DateModified"],
                                 DateCreated = (DateTime)reader["DateCreated"],
-                                HasChild = (bool)reader["HasChild"],
+                                HasChild = hasChild,
                                 Type = GetDefaultExtension(reader["MimeType"].ToString()),
                                 Id = reader["ItemID"].ToString(),
                                 ParentID = reader["ParentID"].ToString(),
@@ -206,6 +216,33 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                 readResponse.Error = error;
                 return readResponse;
             }
+        }
+
+        private bool CheckIfHasChild(string parentId)
+        {
+            bool hasChild = false;
+            using (SqlConnection sqlConnection = new SqlConnection(this.connectionString))
+            {
+                try
+                {
+                    sqlConnection.Open();
+                    using (SqlCommand command = new SqlCommand("SELECT COUNT(*) FROM " + this.tableName + " WHERE ParentID = @ParentID AND IsFile = 0", sqlConnection))
+                    {
+                        command.Parameters.AddWithValue("@ParentID", parentId);
+                        int childCount = (int)command.ExecuteScalar();
+                        hasChild = childCount > 0;
+                    }
+                }
+                catch (SqlException ex)
+                {
+                    Console.WriteLine(ex.ToString());
+                }
+                finally
+                {
+                    sqlConnection.Close();
+                }
+            }
+            return hasChild;
         }
 
         protected AccessPermission GetPermission(string id,  string parentId, string name, bool isFile, string path)
