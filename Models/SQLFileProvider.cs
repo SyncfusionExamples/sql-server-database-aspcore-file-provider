@@ -126,11 +126,6 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                             SqlDataReader reader = command.ExecuteReader();
                             while (reader.Read())
                             {
-                                bool hasChild = false;
-                                if (!(bool)reader["IsFile"]) // Only check for directories
-                                {
-                                    hasChild = CheckIfHasChild(reader["ItemID"].ToString());
-                                }
                                 cwd = new FileManagerDirectoryContent
                                 {
                                     Name = reader["Name"].ToString().Trim(),
@@ -141,7 +136,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                                     DateCreated = (DateTime)reader["DateCreated"],
                                     Type = GetDefaultExtension(reader["MimeType"].ToString()),
                                     Id = reader["ItemID"].ToString(),
-                                    HasChild = hasChild,
+                                    HasChild = CheckIfHasChild(reader["ItemID"].ToString()),
                                     ParentID = reader["ParentID"].ToString(),
                                 };
                                 string sanitizedName = SanitizeFileName(cwd.Name);
@@ -163,11 +158,6 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                         SqlDataReader reader = command.ExecuteReader();
                         while (reader.Read())
                         {
-                            bool hasChild = false;
-                            if (!(bool)reader["IsFile"]) // Only check for directories
-                            {
-                                hasChild = CheckIfHasChild(reader["ItemID"].ToString());
-                            }
                             var childFiles = new FileManagerDirectoryContent
                             {
                                 Name = reader["Name"].ToString().Trim(),
@@ -175,7 +165,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                                 IsFile = (bool)reader["IsFile"],
                                 DateModified = (DateTime)reader["DateModified"],
                                 DateCreated = (DateTime)reader["DateCreated"],
-                                HasChild = hasChild,
+                                HasChild = CheckIfHasChild(reader["ItemID"].ToString()),
                                 Type = GetDefaultExtension(reader["MimeType"].ToString()),
                                 Id = reader["ItemID"].ToString(),
                                 ParentID = reader["ParentID"].ToString(),
