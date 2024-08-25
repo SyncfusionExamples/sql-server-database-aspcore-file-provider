@@ -136,7 +136,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                                     DateCreated = (DateTime)reader["DateCreated"],
                                     Type = GetDefaultExtension(reader["MimeType"].ToString()),
                                     Id = reader["ItemID"].ToString(),
-                                    HasChild = CheckIfHasChild(reader["ItemID"].ToString()),
+                                    HasChild = (bool)reader["HasChild"],
                                     ParentID = reader["ParentID"].ToString(),
                                 };
                                 string sanitizedName = SanitizeFileName(cwd.Name);
@@ -165,7 +165,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                                 IsFile = (bool)reader["IsFile"],
                                 DateModified = (DateTime)reader["DateModified"],
                                 DateCreated = (DateTime)reader["DateCreated"],
-                                HasChild = CheckIfHasChild(reader["ItemID"].ToString()),
+                                HasChild = (bool)reader["HasChild"],
                                 Type = GetDefaultExtension(reader["MimeType"].ToString()),
                                 Id = reader["ItemID"].ToString(),
                                 ParentID = reader["ParentID"].ToString(),
@@ -206,33 +206,6 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                 readResponse.Error = error;
                 return readResponse;
             }
-        }
-
-        private bool CheckIfHasChild(string parentId)
-        {
-            bool hasChild = false;
-            using (SqlConnection sqlConnection = new SqlConnection(this.connectionString))
-            {
-                try
-                {
-                    sqlConnection.Open();
-                    using (SqlCommand command = new SqlCommand("SELECT COUNT(*) FROM " + this.tableName + " WHERE ParentID = @ParentID AND IsFile = 0", sqlConnection))
-                    {
-                        command.Parameters.AddWithValue("@ParentID", parentId);
-                        int childCount = (int)command.ExecuteScalar();
-                        hasChild = childCount > 0;
-                    }
-                }
-                catch (SqlException ex)
-                {
-                    Console.WriteLine(ex.ToString());
-                }
-                finally
-                {
-                    sqlConnection.Close();
-                }
-            }
-            return hasChild;
         }
 
         protected AccessPermission GetPermission(string id,  string parentId, string name, bool isFile, string path)
@@ -1763,6 +1736,10 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                         }
                         reader.Close();
                         foreach (var file in files) { file.FilterId = GetFilterId(file.Id); }
+
+                        // Update HasChild for parent and target directories
+                        UpdateHasChildProperty(item.ParentID);
+                        UpdateHasChildProperty(targetData.Id);
                     }
                     catch (Exception e) { throw e; }
                     finally { sqlConnection.Close(); }
@@ -1778,6 +1755,37 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                 if ((error.Code == "401") && !string.IsNullOrEmpty(accessMessage)) { error.Message = accessMessage; }
                 moveResponse.Error = error;
                 return moveResponse;
+            }
+        }
+
+        private void UpdateHasChildProperty(string directoryId)
+        {
+            using (SqlConnection sqlConnection = new SqlConnection(this.connectionString))
+            {
+                try
+                {
+                    sqlConnection.Open();
+                    // Check if the directory contains any folders
+                    string checkFoldersQuery = "SELECT COUNT(*) FROM " + tableName + " WHERE ParentID = @ParentId AND IsFile = 0";
+                    SqlCommand checkFoldersCommand = new SqlCommand(checkFoldersQuery, sqlConnection);
+                    checkFoldersCommand.Parameters.AddWithValue("@ParentId", directoryId);
+                    int folderCount = (int)checkFoldersCommand.ExecuteScalar();
+        
+                    // Update HasChild property
+                    string updateHasChildQuery = "UPDATE " + tableName + " SET HasChild = @HasChild WHERE ItemID = @ItemId";
+                    SqlCommand updateHasChildCommand = new SqlCommand(updateHasChildQuery, sqlConnection);
+                    updateHasChildCommand.Parameters.AddWithValue("@HasChild", folderCount > 0);
+                    updateHasChildCommand.Parameters.AddWithValue("@ItemId", directoryId);
+                    updateHasChildCommand.ExecuteNonQuery();
+                }
+                catch (SqlException ex)
+                {
+                    Console.WriteLine(ex.ToString());
+                }
+                finally
+                {
+                    sqlConnection.Close();
+                }
             }
         }
 
