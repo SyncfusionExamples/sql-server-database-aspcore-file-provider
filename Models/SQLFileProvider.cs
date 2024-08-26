@@ -1736,6 +1736,10 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                         }
                         reader.Close();
                         foreach (var file in files) { file.FilterId = GetFilterId(file.Id); }
+
+                        // Update HasChild for parent and target directories
+                        UpdateHasChildProperty(item.ParentID);
+                        UpdateHasChildProperty(targetData.Id);
                     }
                     catch (Exception e) { throw e; }
                     finally { sqlConnection.Close(); }
@@ -1751,6 +1755,37 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                 if ((error.Code == "401") && !string.IsNullOrEmpty(accessMessage)) { error.Message = accessMessage; }
                 moveResponse.Error = error;
                 return moveResponse;
+            }
+        }
+
+        private void UpdateHasChildProperty(string directoryId)
+        {
+            using (SqlConnection sqlConnection = new SqlConnection(this.connectionString))
+            {
+                try
+                {
+                    sqlConnection.Open();
+                    // Check if the directory contains any folders
+                    string checkFoldersQuery = "SELECT COUNT(*) FROM " + tableName + " WHERE ParentID = @ParentId AND IsFile = 0";
+                    SqlCommand checkFoldersCommand = new SqlCommand(checkFoldersQuery, sqlConnection);
+                    checkFoldersCommand.Parameters.AddWithValue("@ParentId", directoryId);
+                    int folderCount = (int)checkFoldersCommand.ExecuteScalar();
+        
+                    // Update HasChild property
+                    string updateHasChildQuery = "UPDATE " + tableName + " SET HasChild = @HasChild WHERE ItemID = @ItemId";
+                    SqlCommand updateHasChildCommand = new SqlCommand(updateHasChildQuery, sqlConnection);
+                    updateHasChildCommand.Parameters.AddWithValue("@HasChild", folderCount > 0);
+                    updateHasChildCommand.Parameters.AddWithValue("@ItemId", directoryId);
+                    updateHasChildCommand.ExecuteNonQuery();
+                }
+                catch (SqlException ex)
+                {
+                    Console.WriteLine(ex.ToString());
+                }
+                finally
+                {
+                    sqlConnection.Close();
+                }
             }
         }
 
