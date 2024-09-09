@@ -1583,13 +1583,21 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                         string lastId = "";
                         string copyQuery = @"
                             INSERT INTO " + tableName + @" (Name, ParentID, Size, isFile, MimeType, Content, DateModified, DateCreated, HasChild, IsRoot, Type, FilterPath)
+                            OUTPUT INSERTED.ItemID
                             SELECT Name, @TargetId, Size, isFile, MimeType, Content, DateModified, DateCreated, HasChild, IsRoot, Type, FilterPath
                             FROM " + tableName + @" WHERE ItemID = @ItemId";
                         SqlCommand copyQuerycommand = new SqlCommand(copyQuery, sqlConnection);
                         copyQuerycommand.Parameters.AddWithValue("@TargetId", targetData.Id);
                         copyQuerycommand.Parameters.AddWithValue("@ItemId", item.Id);
-                        copyQuerycommand.ExecuteNonQuery();
-                        lastId = GetLastInsertedValue();
+                        object result = copyQuerycommand.ExecuteScalar();
+                        if (result != null)
+                        {
+                            lastId = result.ToString();
+                        }
+                        else
+                        {
+                            throw new Exception("Failed to retrieve the last inserted ID.");
+                        }
                         sqlConnection.Close();
                         sqlConnection.Open();
                         string query = "SELECT * FROM " + this.tableName + " WHERE ItemID = @LastId";
