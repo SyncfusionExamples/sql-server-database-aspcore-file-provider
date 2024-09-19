@@ -9,8 +9,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Win32;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Serialization;
+using System.Text.Json;
 
 
 namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
@@ -1830,7 +1829,12 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
 
         public string ToCamelCase(FileManagerResponse userData)
         {
-            return JsonConvert.SerializeObject(userData, new JsonSerializerSettings { ContractResolver = new DefaultContractResolver { NamingStrategy = new CamelCaseNamingStrategy() } });
+            JsonSerializerOptions options = new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            };
+
+            return JsonSerializer.Serialize(userData, options);
         }
     }
 }

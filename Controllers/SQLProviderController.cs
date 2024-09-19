@@ -1,12 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
-using Newtonsoft.Json;
 using Syncfusion.EJ2.FileManager.Base;
 using Syncfusion.EJ2.FileManager.Base.SQLFileProvider;
 
@@ -92,7 +92,15 @@ namespace EJ2APIServices.Controllers
         {
             FileManagerResponse uploadResponse;
             FileManagerDirectoryContent[] dataObject = new FileManagerDirectoryContent[1];
-            dataObject[0] = JsonConvert.DeserializeObject<FileManagerDirectoryContent>(data);
+            dataObject[0] = JsonSerializer.Deserialize<FileManagerDirectoryContent>(data);
+            if (dataObject[0].Name == null)
+            {
+                var options = new JsonSerializerOptions
+                {
+                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                };
+                dataObject[0] = JsonSerializer.Deserialize<FileManagerDirectoryContent>(data, options);
+            }
             uploadResponse = operation.Upload(path, uploadFiles, action, dataObject);
             if (uploadResponse.Error != null)
             {
@@ -108,7 +116,11 @@ namespace EJ2APIServices.Controllers
         [Route("SQLDownload")]
         public IActionResult SQLDownload(string downloadInput)
         {
-            FileManagerDirectoryContent args = JsonConvert.DeserializeObject<FileManagerDirectoryContent>(downloadInput);
+            var options = new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            };
+            FileManagerDirectoryContent args = JsonSerializer.Deserialize<FileManagerDirectoryContent>(downloadInput, options);
             args.Path = (args.Path);
             return operation.Download(args.Path, args.Names, args.Data);
         }
