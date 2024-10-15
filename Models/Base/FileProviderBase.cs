@@ -26,7 +26,7 @@ namespace Syncfusion.EJ2.FileManager.Base
 
         FileStreamResult Download(string path, string[] names, params FileManagerDirectoryContent[] data);
 
-        FileManagerResponse Upload(string path, IList<IFormFile> uploadFiles, string action, params FileManagerDirectoryContent[] data);
+        FileManagerResponse Upload(string path, IList<IFormFile> uploadFiles, string action, long size, params FileManagerDirectoryContent[] data);
 
         FileStreamResult GetImage(string path, string parentId, string id, bool allowCompress, ImageSize size, params FileManagerDirectoryContent[] data);
 

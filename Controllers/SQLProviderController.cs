@@ -88,7 +88,7 @@ namespace EJ2APIServices.Controllers
 
         // Uploads the file(s) into a specified path
         [Route("SQLUpload")]
-        public IActionResult SQLUpload(string path, IList<IFormFile> uploadFiles, string action, string data)
+        public IActionResult SQLUpload(string path, long size, IList<IFormFile> uploadFiles, string action, string data)
         {
             FileManagerResponse uploadResponse;
             FileManagerDirectoryContent[] dataObject = new FileManagerDirectoryContent[1];
@@ -101,7 +101,8 @@ namespace EJ2APIServices.Controllers
                 };
                 dataObject[0] = JsonSerializer.Deserialize<FileManagerDirectoryContent>(data, options);
             }
-            uploadResponse = operation.Upload(path, uploadFiles, action, dataObject);
+            operation.HttpContext = HttpContext;
+            uploadResponse = operation.Upload(path, uploadFiles, action, size, dataObject);
             if (uploadResponse.Error != null)
             {
                 Response.Clear();
