@@ -1064,7 +1064,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                         {
                             if (isExist)
                             {
-                                existFiles.Add(fileName); // Handle existing files, e.g., warn user or append to a list.
+                                existFiles.Add(fileName);
                             }
                             else
                             {
@@ -1193,52 +1193,77 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
 
         public void UploadChunkToSQL(string fileName, string contentType, byte[] chunkData, string parentId, int chunkIndex, int totalChunks)
         {
-            sqlConnection = setSQLDBConnection();
-            sqlConnection.Open();
+            using (SqlConnection sqlConnection = setSQLDBConnection())
+            {
+                sqlConnection.Open();
+                using (SqlTransaction transaction = sqlConnection.BeginTransaction())
+                {
+                    try
+                    {
+                        int commandTimeout = 30;
+                        if (chunkIndex == 0)
+                        {
+                            // Insert the first chunk and initialize the file record
+                            SqlCommand insertCommand = new SqlCommand(
+                                "INSERT INTO " + tableName + " (Name, ParentID, Size, IsFile, MimeType, Content, DateModified, DateCreated, HasChild, IsRoot, Type) " +
+                                "VALUES (@Name, @ParentID, @Size, @IsFile, @MimeType, @Content, @DateModified, @DateCreated, @HasChild, @IsRoot, @Type)",
+                                sqlConnection, transaction);
+                            insertCommand.CommandTimeout = commandTimeout;
+                            insertCommand.Parameters.AddWithValue("@Name", fileName);
+                            insertCommand.Parameters.AddWithValue("@IsFile", true);
+                            insertCommand.Parameters.AddWithValue("@Size", chunkData.Length);
+                            insertCommand.Parameters.AddWithValue("@ParentId", parentId);
+                            insertCommand.Parameters.AddWithValue("@MimeType", contentType);
+                            insertCommand.Parameters.AddWithValue("@Content", chunkData);
+                            insertCommand.Parameters.AddWithValue("@DateModified", DateTime.Now);
+                            insertCommand.Parameters.AddWithValue("@DateCreated", DateTime.Now);
+                            insertCommand.Parameters.AddWithValue("@HasChild", false);
+                            insertCommand.Parameters.AddWithValue("@IsRoot", false);
+                            insertCommand.Parameters.AddWithValue("@Type", "File");
+                            insertCommand.ExecuteNonQuery();
+                        }
+                        else
+                        {
+                            // Append chunk data to existing record
+                            SqlCommand updateCommand = new SqlCommand(
+                                "UPDATE " + tableName + " SET Content = CAST(Content AS VARBINARY(MAX)) + @Content, Size = Size + @ChunkSize " +
+                                "WHERE Name = @Name AND ParentID = @ParentID",
+                                sqlConnection, transaction);
 
-            int commandTimeout = 30;
-            if (chunkIndex == 0)
-            {
-                SqlCommand insertCommand = new SqlCommand("INSERT INTO " + tableName + " (Name, ParentID, Size, IsFile, MimeType, Content, DateModified, DateCreated, HasChild, IsRoot, Type) VALUES (@Name, @ParentID, @Size, @IsFile, @MimeType, @Content, @DateModified, @DateCreated, @HasChild, @IsRoot, @Type)", sqlConnection);
-                insertCommand.CommandTimeout = commandTimeout;
-                insertCommand.Parameters.Add(new SqlParameter("@Name", fileName));
-                insertCommand.Parameters.Add(new SqlParameter("@IsFile", true));
-                insertCommand.Parameters.Add(new SqlParameter("@Size", chunkData.Length));
-                insertCommand.Parameters.Add(new SqlParameter("@ParentId", parentId));
-                insertCommand.Parameters.Add(new SqlParameter("@MimeType", contentType));
-                insertCommand.Parameters.Add("@Content", SqlDbType.VarBinary).Value = chunkData;
-                insertCommand.Parameters.Add(new SqlParameter("@DateModified", DateTime.Now));
-                insertCommand.Parameters.Add(new SqlParameter("@DateCreated", DateTime.Now));
-                insertCommand.Parameters.Add(new SqlParameter("@HasChild", false));
-                insertCommand.Parameters.Add(new SqlParameter("@IsRoot", false));
-                insertCommand.Parameters.Add(new SqlParameter("@Type", "File"));
-                insertCommand.ExecuteNonQuery();
+                            updateCommand.CommandTimeout = commandTimeout;
+                            updateCommand.Parameters.AddWithValue("@Content", chunkData);
+                            updateCommand.Parameters.AddWithValue("@ChunkSize", chunkData.Length);
+                            updateCommand.Parameters.AddWithValue("@Name", fileName);
+                            updateCommand.Parameters.AddWithValue("@ParentID", parentId);
+
+                            updateCommand.ExecuteNonQuery();
+                        }
+                        // Finalize file after all chunks are uploaded
+                        if (chunkIndex == totalChunks - 1)
+                        {
+                            SqlCommand finalizeCommand = new SqlCommand(
+                                "UPDATE " + tableName + " SET DateModified = @DateModified WHERE Name = @Name AND ParentID = @ParentID",
+                                sqlConnection, transaction);
+
+                            finalizeCommand.CommandTimeout = commandTimeout;
+                            finalizeCommand.Parameters.AddWithValue("@DateModified", DateTime.Now);
+                            finalizeCommand.Parameters.AddWithValue("@Name", fileName);
+                            finalizeCommand.Parameters.AddWithValue("@ParentID", parentId);
+
+                            finalizeCommand.ExecuteNonQuery();
+                        }
+
+                        transaction.Commit();
+                    }
+                    catch (Exception)
+                    {
+                        transaction.Rollback();
+                        throw;
+                    }
+                }
             }
-            else
-            {
-                SqlCommand updateCommand = new SqlCommand("UPDATE " + tableName + " SET Content = CAST(Content AS VARBINARY(MAX)) + @Content, Size = Size + @ChunkSize WHERE Name = @Name AND ParentID = @ParentID", sqlConnection);
-                updateCommand.CommandTimeout = commandTimeout;
-                updateCommand.Parameters.Add(new SqlParameter("@Content", chunkData));
-                updateCommand.Parameters.Add(new SqlParameter("@ChunkSize", chunkData.Length));
-                updateCommand.Parameters.Add(new SqlParameter("@Name", fileName));
-                updateCommand.Parameters.Add(new SqlParameter("@ParentID", parentId));
-                updateCommand.ExecuteNonQuery();
-            }
-            if (chunkIndex == totalChunks - 1)
-            {
-                SqlCommand finalizeCommand = new SqlCommand("UPDATE " + tableName + " SET DateModified = @DateModified WHERE Name = @Name AND ParentID = @ParentID", sqlConnection);
-                finalizeCommand.CommandTimeout = commandTimeout;
-                finalizeCommand.Parameters.Add(new SqlParameter("@DateModified", DateTime.Now));
-                finalizeCommand.Parameters.Add(new SqlParameter("@Name", fileName));
-                finalizeCommand.Parameters.Add(new SqlParameter("@ParentID", parentId));
-                finalizeCommand.ExecuteNonQuery();
-            }
-            sqlConnection.Close();
         }
 
-
-
-        // Updates the data table after uploading the file
         public void UploadQuery(string fileName, string contentType, byte[] bytes, string parentId)
         {
             sqlConnection = setSQLDBConnection();
