@@ -101,8 +101,9 @@ namespace EJ2APIServices.Controllers
                 };
                 dataObject[0] = JsonSerializer.Deserialize<FileManagerDirectoryContent>(data, options);
             }
-            operation.HttpContext = HttpContext;
-            uploadResponse = operation.Upload(path, uploadFiles, action, size, dataObject);
+            int chunkIndex = Convert.ToInt32(HttpContext.Request.Form["chunk-index"]);
+            int totalChunk = Convert.ToInt32(HttpContext.Request.Form["total-chunk"]);
+            uploadResponse = operation.Upload(path, uploadFiles, action, size, chunkIndex, totalChunk, dataObject);
             if (uploadResponse.Error != null)
             {
                 Response.Clear();

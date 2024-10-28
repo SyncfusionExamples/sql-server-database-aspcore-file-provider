@@ -14,7 +14,7 @@ using System.Text.Json;
 
 namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
 {
-    public class SQLFileProvider : SQLFileProviderBase
+    public class SQLFileProvider
     {
         string connectionString;
         string tableName;
@@ -30,7 +30,6 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
         private string previousEntryName = "";
         AccessDetails AccessDetails = new AccessDetails();
         private string accessMessage = string.Empty;
-        public HttpContext HttpContext;
 
         // Sets the configuration
         public SQLFileProvider(IConfiguration configuration) { this.configuration = configuration; }
@@ -1037,7 +1036,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
             }
         }
         // Uploads the files
-        public virtual FileManagerResponse Upload(string path, IList<IFormFile> uploadFiles, string action, long size, params FileManagerDirectoryContent[] data)
+        public virtual FileManagerResponse Upload(string path, IList<IFormFile> uploadFiles, string action, long size, int chunkIndex, int totalChunk, params FileManagerDirectoryContent[] data)
         {
             FileManagerResponse uploadResponse = new FileManagerResponse();
 
@@ -1070,7 +1069,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                             {
                                 if (isValidChunkUpload)
                                 {
-                                    PerformChunkedSQLUpload(file, fileName, contentType, data[0].Id);
+                                    PerformChunkedSQLUpload(file, fileName, contentType, chunkIndex, totalChunk, data[0].Id);
                                 }
                                 else
                                 {
@@ -1096,7 +1095,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                             }
                             if (isValidChunkUpload)
                             {
-                                PerformChunkedSQLUpload(file, fileName, contentType, data[0].Id);
+                                PerformChunkedSQLUpload(file, fileName, contentType, chunkIndex, totalChunk, data[0].Id);
                             }
                             else
                             {
@@ -1121,7 +1120,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                             string newFileName = Path.GetFileName(newAbsoluteFilePath);
                             if (isValidChunkUpload)
                             {
-                                PerformChunkedSQLUpload(file, newFileName, contentType, data[0].Id);
+                                PerformChunkedSQLUpload(file, newFileName, contentType, chunkIndex, totalChunk, data[0].Id);
                             }
                             else
                             {
@@ -1170,12 +1169,10 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
             }
         }
 
-        public void PerformChunkedSQLUpload(IFormFile file, string fileName, string contentType, string parentId)
+        public void PerformChunkedSQLUpload(IFormFile file, string fileName, string contentType, int chunkIndex, int totalChunk, string parentId)
         {
             try
             {
-                int chunkIndex = Convert.ToInt32(HttpContext.Request.Form["chunk-index"]);
-                int totalChunk = Convert.ToInt32(HttpContext.Request.Form["total-chunk"]);
                 byte[] buffer;
 
                 using (var memoryStream = new MemoryStream())
