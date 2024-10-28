@@ -14,7 +14,7 @@ using System.Text.Json;
 
 namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
 {
-    public class SQLFileProvider : SQLFileProviderBase
+    public class SQLFileProvider
     {
         string connectionString;
         string tableName;
@@ -1036,7 +1036,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
             }
         }
         // Uploads the files
-        public virtual FileManagerResponse Upload(string path, IList<IFormFile> uploadFiles, string action, params FileManagerDirectoryContent[] data)
+        public virtual FileManagerResponse Upload(string path, IList<IFormFile> uploadFiles, string action, long size, int chunkIndex, int totalChunk, params FileManagerDirectoryContent[] data)
         {
             FileManagerResponse uploadResponse = new FileManagerResponse();
 
@@ -1057,32 +1057,30 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                         string fileName = Path.GetFileName(file.FileName);
                         string absoluteFilePath = Path.Combine(Path.GetTempPath(), fileName);
                         string contentType = file.ContentType;
+                        bool isValidChunkUpload = file.ContentType == "application/octet-stream";
+                        bool isExist = IsFileExist(data[0].Id, fileName, size);
                         if (action == "save")
                         {
-                            if (!IsFileExist(data[0].Id, fileName))
+                            if (isExist)
                             {
-                                using (FileStream fsSource = new FileStream(absoluteFilePath, FileMode.Create))
-                                {
-                                    file.CopyTo(fsSource);
-                                    fsSource.Close();
-                                }
-                                using (FileStream fsSource = new FileStream(absoluteFilePath, FileMode.Open, FileAccess.Read))
-                                {
-                                    BinaryReader binaryReader = new BinaryReader(fsSource);
-                                    long numBytes = new FileInfo(absoluteFilePath).Length;
-                                    byte[] bytes = binaryReader.ReadBytes((int)numBytes);
-                                    UploadQuery(fileName, contentType, bytes, data[0].Id);
-                                }
+                                existFiles.Add(fileName);
                             }
                             else
                             {
-                                existFiles.Add(fileName);
+                                if (isValidChunkUpload)
+                                {
+                                    PerformChunkedSQLUpload(file, fileName, contentType, chunkIndex, totalChunk, data[0].Id);
+                                }
+                                else
+                                {
+                                    PerformDefaultSQLUpload(file, fileName, contentType, data[0].Id);
+                                }
                             }
                         }
                         else if (action == "replace")
                         {
-                            FileManagerResponse detailsResponse = this.GetFiles(path, false, data);                         
-                            if (System.IO.File.Exists(absoluteFilePath))
+                            FileManagerResponse detailsResponse = this.GetFiles(path, false, data);
+                            if (System.IO.File.Exists(absoluteFilePath) || isExist)
                             {
                                 System.IO.File.Delete(absoluteFilePath);
 
@@ -1095,46 +1093,38 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                                     }
                                 }
                             }
-                            using (FileStream fsSource = new FileStream(absoluteFilePath, FileMode.Create))
+                            if (isValidChunkUpload)
                             {
-                                file.CopyTo(fsSource);
-                                fsSource.Close();
+                                PerformChunkedSQLUpload(file, fileName, contentType, chunkIndex, totalChunk, data[0].Id);
                             }
-                            using (FileStream fsSource = new FileStream(absoluteFilePath, FileMode.Open, FileAccess.Read))
+                            else
                             {
-                                BinaryReader binaryReader = new BinaryReader(fsSource);
-                                long numBytes = new FileInfo(absoluteFilePath).Length;
-                                byte[] bytes = binaryReader.ReadBytes((int)numBytes);
-                                UploadQuery(fileName, contentType, bytes, data[0].Id);
-                             }
+                                PerformDefaultSQLUpload(file, fileName, contentType, data[0].Id);
+                            }
                         }
                         else if (action == "keepboth")
                         {
-                            string newAbsoluteFilePath = absoluteFilePath;
+                            string newAbsoluteFilePath = fileName;
                             int index = newAbsoluteFilePath.LastIndexOf(".");
                             if (index >= 0)
                             {
                                 newAbsoluteFilePath = newAbsoluteFilePath.Substring(0, index);
                             }
                             int fileCount = 0;
-                            while (System.IO.File.Exists(newAbsoluteFilePath + (fileCount > 0 ? "(" + fileCount.ToString() + ")" + Path.GetExtension(fileName) : Path.GetExtension(fileName))))
+                            while (IsFileExist(data[0].Id, newAbsoluteFilePath + (fileCount > 0 ? "(" + fileCount.ToString() + ")" + Path.GetExtension(fileName) : Path.GetExtension(fileName)), size))
                             {
                                 fileCount++;
                             }
 
                             newAbsoluteFilePath = newAbsoluteFilePath + (fileCount > 0 ? "(" + fileCount.ToString() + ")" : "") + Path.GetExtension(fileName);
                             string newFileName = Path.GetFileName(newAbsoluteFilePath);
-                            using (FileStream fsSource = new FileStream(newAbsoluteFilePath, FileMode.Create))
+                            if (isValidChunkUpload)
                             {
-                                file.CopyTo(fsSource);
-                                fsSource.Close();
+                                PerformChunkedSQLUpload(file, newFileName, contentType, chunkIndex, totalChunk, data[0].Id);
                             }
-                            using (FileStream fsSource = new FileStream(newAbsoluteFilePath, FileMode.Open, FileAccess.Read))
+                            else
                             {
-                                BinaryReader binaryReader = new BinaryReader(fsSource);
-                                long numBytes = new FileInfo(newAbsoluteFilePath).Length;
-                                byte[] bytes = binaryReader.ReadBytes((int)numBytes);
-                                UploadQuery(newFileName, contentType, bytes, data[0].Id);
+                                PerformDefaultSQLUpload(file, newFileName, contentType, data[0].Id);
                             }
                         }
                     }
@@ -1160,7 +1150,117 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
             }
             
         }
-        // Updates the data table after uploading the file
+
+        public void PerformDefaultSQLUpload(IFormFile file, string fileName, string contentType, string parentId)
+        {
+            try
+            {
+                byte[] fileBytes;
+                using (var memoryStream = new MemoryStream())
+                {
+                    file.CopyTo(memoryStream);
+                    fileBytes = memoryStream.ToArray();
+                }
+                UploadQuery(fileName, contentType, fileBytes, parentId);
+            }
+            catch (Exception)
+            {
+                throw;
+            }
+        }
+
+        public void PerformChunkedSQLUpload(IFormFile file, string fileName, string contentType, int chunkIndex, int totalChunk, string parentId)
+        {
+            try
+            {
+                byte[] buffer;
+
+                using (var memoryStream = new MemoryStream())
+                {
+                    file.CopyTo(memoryStream);
+                    buffer = memoryStream.ToArray();
+                    UploadChunkToSQL(fileName, contentType, buffer, parentId, chunkIndex, totalChunk);
+                }
+            }
+            catch (Exception)
+            {
+                throw;
+            }
+        }
+
+        public void UploadChunkToSQL(string fileName, string contentType, byte[] chunkData, string parentId, int chunkIndex, int totalChunks)
+        {
+            using (SqlConnection sqlConnection = setSQLDBConnection())
+            {
+                sqlConnection.Open();
+                using (SqlTransaction transaction = sqlConnection.BeginTransaction())
+                {
+                    try
+                    {
+                        int commandTimeout = 30;
+                        if (chunkIndex == 0)
+                        {
+                            // Insert the first chunk and initialize the file record
+                            SqlCommand insertCommand = new SqlCommand(
+                                "INSERT INTO " + tableName + " (Name, ParentID, Size, IsFile, MimeType, Content, DateModified, DateCreated, HasChild, IsRoot, Type) " +
+                                "VALUES (@Name, @ParentID, @Size, @IsFile, @MimeType, @Content, @DateModified, @DateCreated, @HasChild, @IsRoot, @Type)",
+                                sqlConnection, transaction);
+                            insertCommand.CommandTimeout = commandTimeout;
+                            insertCommand.Parameters.AddWithValue("@Name", fileName);
+                            insertCommand.Parameters.AddWithValue("@IsFile", true);
+                            insertCommand.Parameters.AddWithValue("@Size", chunkData.Length);
+                            insertCommand.Parameters.AddWithValue("@ParentId", parentId);
+                            insertCommand.Parameters.AddWithValue("@MimeType", contentType);
+                            insertCommand.Parameters.AddWithValue("@Content", chunkData);
+                            insertCommand.Parameters.AddWithValue("@DateModified", DateTime.Now);
+                            insertCommand.Parameters.AddWithValue("@DateCreated", DateTime.Now);
+                            insertCommand.Parameters.AddWithValue("@HasChild", false);
+                            insertCommand.Parameters.AddWithValue("@IsRoot", false);
+                            insertCommand.Parameters.AddWithValue("@Type", "File");
+                            insertCommand.ExecuteNonQuery();
+                        }
+                        else
+                        {
+                            // Append chunk data to existing record
+                            SqlCommand updateCommand = new SqlCommand(
+                                "UPDATE " + tableName + " SET Content = CAST(Content AS VARBINARY(MAX)) + @Content, Size = Size + @ChunkSize " +
+                                "WHERE Name = @Name AND ParentID = @ParentID",
+                                sqlConnection, transaction);
+
+                            updateCommand.CommandTimeout = commandTimeout;
+                            updateCommand.Parameters.AddWithValue("@Content", chunkData);
+                            updateCommand.Parameters.AddWithValue("@ChunkSize", chunkData.Length);
+                            updateCommand.Parameters.AddWithValue("@Name", fileName);
+                            updateCommand.Parameters.AddWithValue("@ParentID", parentId);
+
+                            updateCommand.ExecuteNonQuery();
+                        }
+                        // Finalize file after all chunks are uploaded
+                        if (chunkIndex == totalChunks - 1)
+                        {
+                            SqlCommand finalizeCommand = new SqlCommand(
+                                "UPDATE " + tableName + " SET DateModified = @DateModified WHERE Name = @Name AND ParentID = @ParentID",
+                                sqlConnection, transaction);
+
+                            finalizeCommand.CommandTimeout = commandTimeout;
+                            finalizeCommand.Parameters.AddWithValue("@DateModified", DateTime.Now);
+                            finalizeCommand.Parameters.AddWithValue("@Name", fileName);
+                            finalizeCommand.Parameters.AddWithValue("@ParentID", parentId);
+
+                            finalizeCommand.ExecuteNonQuery();
+                        }
+
+                        transaction.Commit();
+                    }
+                    catch (Exception)
+                    {
+                        transaction.Rollback();
+                        throw;
+                    }
+                }
+            }
+        }
+
         public void UploadQuery(string fileName, string contentType, byte[] bytes, string parentId)
         {
             sqlConnection = setSQLDBConnection();
@@ -1179,6 +1279,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
             command.Parameters.Add(new SqlParameter("@Type", "File"));
             command.ExecuteNonQuery();
         }
+
         // Converts the file to byte array
         public byte[] FileToByteArray(string fileName)
         {
@@ -1815,16 +1916,21 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
         /// <param name="parentId">The ID of the parent folder to search within.</param>
         /// <param name="name">The name of the file to search for.</param>
         /// <returns>'True' if an item with the specified name exists within the specified parent folder, otherwise 'false'.</returns>
-        public bool IsFileExist(string parentId, string name)
+        public bool IsFileExist(string parentId, string name, long size)
         {
-            sqlConnection = setSQLDBConnection();
-            sqlConnection.Open();
-            SqlCommand Checkcommand = new SqlCommand("SELECT COUNT(Name) FROM " + tableName + " WHERE ParentID=@ParentID AND IsFile='true' AND Name=@Name", sqlConnection);
-            Checkcommand.Parameters.AddWithValue("@ParentID", parentId);
-            Checkcommand.Parameters.AddWithValue("@Name", name.Trim());
-            int count = (int)Checkcommand.ExecuteScalar();
-            sqlConnection.Close();
-            return count != 0;
+            using (SqlConnection sqlConnection = setSQLDBConnection())
+            {
+                sqlConnection.Open();
+                SqlCommand checkCommand = new SqlCommand(
+                    "SELECT COUNT(Name) FROM " + tableName + " WHERE ParentID = @ParentID AND IsFile = 'true' AND Name = @Name AND Size = @Size",
+                    sqlConnection
+                );
+                checkCommand.Parameters.AddWithValue("@ParentID", parentId);
+                checkCommand.Parameters.AddWithValue("@Name", name.Trim());
+                checkCommand.Parameters.AddWithValue("@Size", size);
+                int count = (int)checkCommand.ExecuteScalar();
+                return count != 0;
+            }
         }
 
         public string ToCamelCase(FileManagerResponse userData)
