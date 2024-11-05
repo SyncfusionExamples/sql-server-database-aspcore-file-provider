@@ -103,7 +103,7 @@ namespace EJ2APIServices.Controllers
             }
             int chunkIndex = Convert.ToInt32(HttpContext.Request.Form["chunk-index"]);
             int totalChunk = Convert.ToInt32(HttpContext.Request.Form["total-chunk"]);
-            uploadResponse = operation.Upload(path, uploadFiles, action, size, chunkIndex, totalChunk, dataObject);
+            uploadResponse = operation.Upload(path, uploadFiles, action, dataObject, size, chunkIndex, totalChunk);
             if (uploadResponse.Error != null)
             {
                 Response.Clear();

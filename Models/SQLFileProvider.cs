@@ -1036,7 +1036,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
             }
         }
         // Uploads the files
-        public virtual FileManagerResponse Upload(string path, IList<IFormFile> uploadFiles, string action, long size, int chunkIndex, int totalChunk, params FileManagerDirectoryContent[] data)
+        public virtual FileManagerResponse Upload(string path, IList<IFormFile> uploadFiles, string action, FileManagerDirectoryContent[] data, long size = 0, int chunkIndex = 0, int totalChunk = 0)
         {
             FileManagerResponse uploadResponse = new FileManagerResponse();
 
@@ -1058,7 +1058,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                         string absoluteFilePath = Path.Combine(Path.GetTempPath(), fileName);
                         string contentType = file.ContentType;
                         bool isValidChunkUpload = file.ContentType == "application/octet-stream";
-                        bool isExist = IsFileExist(data[0].Id, fileName, size);
+                        bool isExist = IsFileExist(data[0].Id, fileName, size, isValidChunkUpload);
                         if (action == "save")
                         {
                             if (isExist)
@@ -1111,7 +1111,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                                 newAbsoluteFilePath = newAbsoluteFilePath.Substring(0, index);
                             }
                             int fileCount = 0;
-                            while (IsFileExist(data[0].Id, newAbsoluteFilePath + (fileCount > 0 ? "(" + fileCount.ToString() + ")" + Path.GetExtension(fileName) : Path.GetExtension(fileName)), size))
+                            while (IsFileExist(data[0].Id, newAbsoluteFilePath + (fileCount > 0 ? "(" + fileCount.ToString() + ")" + Path.GetExtension(fileName) : Path.GetExtension(fileName)), size, isValidChunkUpload))
                             {
                                 fileCount++;
                             }
@@ -1916,18 +1916,29 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
         /// <param name="parentId">The ID of the parent folder to search within.</param>
         /// <param name="name">The name of the file to search for.</param>
         /// <returns>'True' if an item with the specified name exists within the specified parent folder, otherwise 'false'.</returns>
-        public bool IsFileExist(string parentId, string name, long size)
+        public bool IsFileExist(string parentId, string name, long size, bool isChunk)
         {
             using (SqlConnection sqlConnection = setSQLDBConnection())
             {
                 sqlConnection.Open();
-                SqlCommand checkCommand = new SqlCommand(
-                    "SELECT COUNT(Name) FROM " + tableName + " WHERE ParentID = @ParentID AND IsFile = 'true' AND Name = @Name AND Size = @Size",
-                    sqlConnection
-                );
+                SqlCommand checkCommand;
+                if (isChunk)
+                {
+                    checkCommand = new SqlCommand(
+                        "SELECT COUNT(Name) FROM " + tableName + " WHERE ParentID = @ParentID AND IsFile = 'true' AND Name = @Name AND Size = @Size",
+                        sqlConnection
+                    );
+                    checkCommand.Parameters.AddWithValue("@Size", size);
+                }
+                else
+                {
+                    checkCommand = new SqlCommand(
+                        "SELECT COUNT(Name) FROM " + tableName + " WHERE ParentID = @ParentID AND IsFile = 'true' AND Name = @Name",
+                        sqlConnection
+                    );
+                }
                 checkCommand.Parameters.AddWithValue("@ParentID", parentId);
                 checkCommand.Parameters.AddWithValue("@Name", name.Trim());
-                checkCommand.Parameters.AddWithValue("@Size", size);
                 int count = (int)checkCommand.ExecuteScalar();
                 return count != 0;
             }
