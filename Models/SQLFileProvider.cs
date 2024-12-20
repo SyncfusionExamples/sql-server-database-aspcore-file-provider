@@ -1452,6 +1452,10 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                     reader.Close();
                 }
             }
+            if(parents.Count == 0)
+            {
+                return string.Empty;
+            }
             return (string.Join("/", parents.ToArray().Reverse()) + "/");
         }
         // Search for file(s) or folder(s)
