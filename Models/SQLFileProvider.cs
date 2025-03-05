@@ -1725,7 +1725,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                             };
                             if (!copyFiles.IsFile)
                             {
-                                foldersId.Add(copyFiles.Id);
+                                foldersId.Add(item.Id);
                                 lastInsertedItemId.Add(lastId);
                             }
                             files.Add(copyFiles);
