@@ -229,7 +229,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                         else if (fileRule.Id.IndexOf("*.*") > -1)
                         {
                             string parentPath = fileRule.Id.Substring(0, fileRule.Id.IndexOf("*.*"));
-                            if (parentPath == "")
+                            if (string.IsNullOrEmpty(parentPath))
                             {
                                 FilePermission = UpdateFileRules(FilePermission, fileRule, name);
                             }
@@ -248,7 +248,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                         {
                             string pathExtension = Path.GetExtension(fileRule.Id).ToLower();
                             string parentPath = fileRule.Id.Substring(0, fileRule.Id.IndexOf("*."));
-                            if (parentPath == "")
+                            if (string.IsNullOrEmpty(parentPath))
                             {
                                 if (pathExtension == nameExtension)
                                 {
@@ -289,7 +289,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                         else if (folderRule.Id.IndexOf("*") > -1)
                         {
                             string parentPath = folderRule.Id.Substring(0, folderRule.Id.IndexOf("*"));
-                            if (parentPath == "")
+                            if (string.IsNullOrEmpty(parentPath))
                             {
                                 FilePermission = UpdateFolderRules(FilePermission, folderRule, name);
                             }
@@ -522,12 +522,12 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                                 SqlDataReader myReader = sqlCommand.ExecuteReader();
                                 while (myReader.Read())
                                 {
-
-                                    if (File.Exists(Path.Combine(Path.GetTempPath(), item.Name)))
-                                        File.Delete(Path.Combine(Path.GetTempPath(), item.Name));
+                                    string safePath = SanitizeAndValidatePath(Path.Combine(Path.GetTempPath(), item.Name));
+                                    if (File.Exists(safePath))
+                                        File.Delete(safePath);
                                     if (item.IsFile)
                                     {
-                                        using (Stream file = File.OpenWrite(Path.Combine(Path.GetTempPath(), item.Name)))
+                                        using (Stream file = File.OpenWrite(safePath))
                                         {
                                             file.Write(((byte[])myReader["Content"]), 0, ((byte[])myReader["Content"]).Length);
                                             if (files.IndexOf(item.Name) == -1) files.Add(item.Name);
@@ -538,17 +538,18 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                                 myReader.Close();
                             }
                         }
-                        catch (Exception ex) { throw ex; }
+                        catch (Exception) { throw; }
                     }
                     sqlConnection.Close();
                     if (files.Count == 1 && data[0].IsFile)
                     {
                         try
                         {
-                            fileStreamResult = new FileStreamResult((new FileStream(Path.Combine(Path.GetTempPath(), files[0]), FileMode.Open, FileAccess.Read)), "APPLICATION/octet-stream");
+                            string safePath = SanitizeAndValidatePath(Path.Combine(Path.GetTempPath(), files[0]));
+                            fileStreamResult = new FileStreamResult((new FileStream(safePath, FileMode.Open, FileAccess.Read)), "APPLICATION/octet-stream");
                             fileStreamResult.FileDownloadName = files[0];
                         }
-                        catch (Exception ex) { throw ex; }
+                        catch (Exception) { throw; }
                     }
                     else
                     {
@@ -577,7 +578,10 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                                     }
                                     sqlConnection.Close();
                                     if (isFile)
-                                        zipEntry = archive.CreateEntryFromFile(Path.GetTempPath() + files[i], files[i], CompressionLevel.Fastest);
+                                    {
+                                        string safePath = SanitizeAndValidatePath(Path.GetTempPath() + files[i]);
+                                        zipEntry = archive.CreateEntryFromFile(safePath, files[i], CompressionLevel.Fastest);
+                                    }
                                     else
                                     {
                                         sqlConnection.Open();
@@ -594,7 +598,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                                     File.Delete(Path.Combine(Path.GetTempPath(), "temp.zip"));
                             }
                         }
-                        catch (Exception ex) { throw ex; }
+                        catch (Exception) { throw; }
                     }
                 }
                 return fileStreamResult;
@@ -643,16 +647,17 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                     if (isFile) fileContent = (byte[])downloadReadCommandReader["Content"];
                     if (isFile)
                     {
-                        if (System.IO.File.Exists(Path.Combine(Path.GetTempPath(), fileName)))
-                            System.IO.File.Delete(Path.Combine(Path.GetTempPath(), fileName));
-                        using (var file = System.IO.File.OpenWrite(Path.Combine(Path.GetTempPath(), fileName)))
+                        string safePath = SanitizeAndValidatePath(Path.Combine(Path.GetTempPath(), fileName));
+                        if (System.IO.File.Exists(safePath))
+                            System.IO.File.Delete(safePath);
+                        using (var file = System.IO.File.OpenWrite(safePath))
                         {
                             file.Write(fileContent, 0, fileContent.Length);
                             file.Close();
-                            zipEntry = archive.CreateEntryFromFile(Path.Combine(Path.GetTempPath(), fileName), folderName + "\\" + fileName, CompressionLevel.Fastest);
+                            zipEntry = archive.CreateEntryFromFile(safePath, folderName + "\\" + fileName, CompressionLevel.Fastest);
                         }
-                        if (System.IO.File.Exists(Path.Combine(Path.GetTempPath(), fileName)))
-                            System.IO.File.Delete(Path.Combine(Path.GetTempPath(), fileName));
+                        if (System.IO.File.Exists(safePath))
+                            System.IO.File.Delete(safePath);
                     }
                     else { folderPath.AddLast(folderName + "/" + fileName); subFolders.AddLast(fileName); }
                 }
@@ -788,8 +793,8 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                                 detailFiles = new FileDetails();
                                 foreach (var item in data)
                                 {
-                                    detailFiles.Name = previousName == "" ? previousName = item.Name : previousName = previousName + ", " + item.Name;
-                                    previousPath = previousPath == "" ? rootDirectory + item.FilterPath : previousPath;
+                                    detailFiles.Name = string.IsNullOrEmpty(previousName) ? previousName = item.Name : previousName = previousName + ", " + item.Name;
+                                    previousPath = string.IsNullOrEmpty(previousPath) ? rootDirectory + item.FilterPath : previousPath;
                                     if (previousPath == rootDirectory + item.FilterPath && !isVariousFolders)
                                     {
                                         previousPath = rootDirectory + item.FilterPath;
@@ -865,7 +870,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                             {
                                 return new FileStreamResult(new MemoryStream((byte[])myReader["Content"]), "APPLICATION/octet-stream"); ;
                             }
-                            catch (Exception ex) { throw ex; }
+                            catch (Exception) { throw; }
                         }
                     }
                 }
@@ -975,7 +980,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                             deleteCommand.Parameters.AddWithValue("@FileId", file.Id);
                             deleteCommand.ExecuteNonQuery();
                         }
-                        string absoluteFilePath = Path.Combine(Path.GetTempPath(), file.Name);
+                        string absoluteFilePath = SanitizeAndValidatePath(Path.Combine(Path.GetTempPath(), file.Name));
                         var tempDirectory = new DirectoryInfo(Path.GetTempPath());
                         foreach (var newFileName in Directory.GetFiles(tempDirectory.ToString()))
                         {
@@ -1055,7 +1060,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                     if (uploadFiles != null)
                     {
                         string fileName = Path.GetFileName(file.FileName);
-                        string absoluteFilePath = Path.Combine(Path.GetTempPath(), fileName);
+                        string absoluteFilePath = SanitizeAndValidatePath(Path.Combine(Path.GetTempPath(), fileName));
                         string contentType = file.ContentType;
                         bool isValidChunkUpload = file.ContentType == "application/octet-stream";
                         bool isExist = IsFileExist(data[0].Id, fileName, size, isValidChunkUpload);
@@ -1280,19 +1285,6 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
             command.ExecuteNonQuery();
         }
 
-        // Converts the file to byte array
-        public byte[] FileToByteArray(string fileName)
-        {
-            byte[] fileData = null;
-            using (FileStream fs = File.OpenRead(fileName))
-            {
-                using (BinaryReader binaryReader = new BinaryReader(fs))
-                {
-                    fileData = binaryReader.ReadBytes((int)fs.Length);
-                }
-            }
-            return fileData;
-        }
         // Renames a file or folder
         public FileManagerResponse Rename(string path, string name, string newName, bool replace = false, params FileManagerDirectoryContent[] data)
         {
@@ -1451,10 +1443,6 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                     }
                     reader.Close();
                 }
-            }
-            if(parents.Count == 0)
-            {
-                return string.Empty;
             }
             return (string.Join("/", parents.ToArray().Reverse()) + "/");
         }
@@ -1735,9 +1723,9 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                         if (foldersId.Count > 0)
                             CopyFolderFiles(foldersId.ToArray(), lastInsertedItemId.ToArray(), sqlConnection);
                     }
-                    catch (Exception e)
+                    catch (Exception)
                     {
-                        throw e;
+                        throw;
                     }
                     finally { sqlConnection.Close(); }
                 }
@@ -1853,7 +1841,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                         UpdateHasChildProperty(item.ParentID);
                         UpdateHasChildProperty(targetData.Id);
                     }
-                    catch (Exception e) { throw e; }
+                    catch (Exception) { throw; }
                     finally { sqlConnection.Close(); }
                 }
                 moveResponse.Files = files;
@@ -1911,7 +1899,7 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                 int loc = Convert.ToInt32(Math.Floor(Math.Log(Math.Abs(fileSize), 1024)));
                 return (Math.Sign(fileSize) * Math.Round(Math.Abs(fileSize) / Math.Pow(1024, loc), 1)).ToString() + " " + index[loc];
             }
-            catch (Exception e) { throw e; }
+            catch (Exception) { throw; }
         }
 
         /// <summary>
@@ -1956,6 +1944,30 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
             };
 
             return JsonSerializer.Serialize(userData, options);
+        }
+
+        private string SanitizeAndValidatePath(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                throw new ArgumentException("Path cannot be null or empty.");
+            }
+            string decodedPath;
+            do
+            {
+                decodedPath = path;
+                path = Uri.UnescapeDataString(decodedPath);
+            } while (decodedPath != path);
+            string fullPath = Path.GetFullPath(path);
+
+            // Ensure the path is within the allowed directory
+            string allowedDirectory = Path.GetFullPath(Path.GetTempPath());
+            if (!fullPath.StartsWith(allowedDirectory, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new UnauthorizedAccessException("Access to the path is not allowed.");
+            }
+
+            return fullPath;
         }
     }
 }
