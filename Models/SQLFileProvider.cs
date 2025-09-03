@@ -1286,11 +1286,20 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
         }
 
         // Renames a file or folder
-        public FileManagerResponse Rename(string path, string name, string newName, bool replace = false, params FileManagerDirectoryContent[] data)
+        public FileManagerResponse Rename(string path, string name, string newName, bool replace = false, bool showFileExtension = true, params FileManagerDirectoryContent[] data)
         {
             FileManagerResponse renameResponse = new FileManagerResponse();
             try
             {
+                if (!showFileExtension && data[0].IsFile)
+                {
+                    string extension = Path.GetExtension(data[0].Name);
+                    if (!string.IsNullOrEmpty(extension))
+                    {
+                        name += extension;
+                        newName += extension;
+                    }
+                }
                 string sanitizedName = SanitizeFileName(data[0].Name);
                 AccessPermission permission = GetPermission(data[0].Id, data[0].ParentID, sanitizedName, data[0].IsFile, path);
                 if (permission != null && (!permission.Read || !permission.Write))
