@@ -1291,6 +1291,15 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
             FileManagerResponse renameResponse = new FileManagerResponse();
             try
             {
+                if (data == null || data.Length == 0 || data[0] == null)
+                {
+                    renameResponse.Error = new ErrorDetails
+                    {
+                        Code = "400",
+                        Message = "The file metadata (data[0]) is missing or not provided."
+                    };
+                    return renameResponse;
+                }
                 if (!showFileExtension && data[0].IsFile)
                 {
                     string extension = Path.GetExtension(data[0].Name);
