@@ -13,6 +13,8 @@ namespace Syncfusion.EJ2.FileManager.Base
 
         public string NewName { get; set; }
 
+        public bool ShowFileExtension { get; set; }
+
         public string[] RenameFiles { get; set; }
 
         public string TargetPath { get; set; }

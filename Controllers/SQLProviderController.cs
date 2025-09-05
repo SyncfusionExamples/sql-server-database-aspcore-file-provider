@@ -75,7 +75,7 @@ namespace EJ2APIServices.Controllers
                     return operation.ToCamelCase(operation.Search(args.Path, args.SearchString, args.ShowHiddenItems, args.CaseSensitive, args.Data));
                 case "rename":
                     // Renames a file or folder.
-                    return operation.ToCamelCase(operation.Rename(args.Path, args.Name, args.NewName, false, args.Data));
+                    return operation.ToCamelCase(operation.Rename(args.Path, args.Name, args.NewName, false, args.ShowFileExtension, args.Data));
                 case "move":
                     // Cuts the selected file(s) or folder(s) from a path and then pastes them into a given target path.
                     return operation.ToCamelCase(operation.Move(args.Path, args.TargetPath, args.Names, args.RenameFiles, args.TargetData, args.Data));
