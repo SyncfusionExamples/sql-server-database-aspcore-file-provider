@@ -2013,7 +2013,6 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                 sanitized = sanitized.Replace("../", "");
             }
             sanitized = sanitized.TrimStart('/');
-
             return sanitized;
         }
     }
