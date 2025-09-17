@@ -580,7 +580,11 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                                     if (isFile)
                                     {
                                         string safePath = SanitizeAndValidatePath(Path.GetTempPath() + files[i]);
-                                        zipEntry = archive.CreateEntryFromFile(safePath, files[i], CompressionLevel.Fastest);
+                                        string sanitizedEntryName = SanitizeZipEntryName(files[i]);
+                                        if (!string.IsNullOrEmpty(sanitizedEntryName))
+                                        {
+                                            zipEntry = archive.CreateEntryFromFile(safePath, sanitizedEntryName, CompressionLevel.Fastest);
+                                        }
                                     }
                                     else
                                     {
@@ -628,7 +632,11 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                 string parentID = "";
                 string fileName = "";
                 bool isFile = false;
-                zipEntry = archive.CreateEntry(folderName + "/");
+                string sanitizedFolderName = SanitizeZipEntryName(folderName + "/");
+                if (!string.IsNullOrEmpty(sanitizedFolderName))
+                {
+                    zipEntry = archive.CreateEntry(sanitizedFolderName);
+                }
                 SqlCommand readCommand = new SqlCommand("SELECT * FROM " + tableName + " WHERE Name = @SubFolderName", sqlConnection);
                 readCommand.Parameters.AddWithValue("@SubFolderName", subFolderName);
                 SqlDataReader readCommandReader = readCommand.ExecuteReader();
@@ -654,7 +662,12 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
                         {
                             file.Write(fileContent, 0, fileContent.Length);
                             file.Close();
-                            zipEntry = archive.CreateEntryFromFile(safePath, folderName + "\\" + fileName, CompressionLevel.Fastest);
+                            string entryPath = folderName + "/" + fileName;
+                            string sanitizedEntryName = SanitizeZipEntryName(entryPath);
+                            if (!string.IsNullOrEmpty(sanitizedEntryName))
+                            {
+                                zipEntry = archive.CreateEntryFromFile(safePath, sanitizedEntryName, CompressionLevel.Fastest);
+                            }
                         }
                         if (System.IO.File.Exists(safePath))
                             System.IO.File.Delete(safePath);
@@ -1986,6 +1999,21 @@ namespace Syncfusion.EJ2.FileManager.Base.SQLFileProvider
             }
 
             return fullPath;
+        }
+
+        private string SanitizeZipEntryName(string entryName)
+        {
+            if (string.IsNullOrEmpty(entryName))
+            {
+                return string.Empty;
+            }
+            string sanitized = entryName.Replace('\\', '/');
+            while (sanitized.Contains("../"))
+            {
+                sanitized = sanitized.Replace("../", "");
+            }
+            sanitized = sanitized.TrimStart('/');
+            return sanitized;
         }
     }
 }
