@@ -1,6 +1,6 @@
 # SQL server database file provider for Essential JS2 File Manager
 
-This repository contains the SQL server database file provider in ASP.NET Core for the Syncfusion File Manager component.
+This repository contains the SQL server database file provider in ASP.NET Core for the File Manager component.
 
 To know more about SQL server database file system provider for File Manager, please refer our documentation [here]
 (https://ej2.syncfusion.com/aspnetcore/documentation/file-manager/file-system-provider#sql-database-file-system-provider).
